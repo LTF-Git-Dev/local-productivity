@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LP User Guide</title>
+<!--
+  The source of "docs/LP User Guide.pdf". Edit this file (and the screenshots in images/), then
+  run Scripts/make-user-guide.sh. Chapter headings must keep the "Chapter N" label: the script
+  finds them by it to number the contents page and add bookmarks.
+
+  WebKit prints this page. It ignores break-after: avoid, so the script at the end keeps every
+  heading with what follows it; and it misplaces floats that cross a page, so a figure beside
+  text goes in a .aside block (a row that never splits) instead of a float. Wrap anything that
+  must stay together in <div class="keep">.
+
+  Screenshots: Scripts/snapshot.sh with LP_SNAPSHOT_SCREEN=retina, LP_SNAPSHOT_SIZE=1280x800 and
+  LP_APPEARANCE=light, saved as JPEG. slash, search and formatbar are crops of the window
+  (formatbar needs `focus` before `select:` and a wait, or the bar isn't up yet).
+-->
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --ink2: rgba(29, 29, 31, 0.74);
+    --ink3: rgba(29, 29, 31, 0.62);
+    --accent: #1a63cc;
+    --hair: rgba(0, 0, 0, 0.10);
+    --fill: rgba(0, 0, 0, 0.035);
+    --tip: rgba(26, 99, 204, 0.075);
+    --warn: rgba(161, 74, 10, 0.08);
+  }
+  /* The page margins; Scripts/make-user-guide.swift draws the footer in the bottom one. */
+  @page { size: A4; margin: 46pt 54pt 62pt 54pt; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    font: 13.5px/1.58 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    font-kerning: normal;
+  }
+  h1, h2, h3 { font-family: -apple-system, "SF Pro Display", sans-serif; color: var(--ink); }
+  p { margin: 0 0 9px; }
+  a { color: var(--accent); text-decoration: none; }
+  strong { font-weight: 600; }
+
+  /* Cover */
+  .cover {
+    height: 900px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center;
+    break-after: page;
+  }
+  .cover img { width: 132px; height: 132px; margin-bottom: 26px; }
+  .cover .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.18em; color: var(--ink3); text-transform: uppercase; }
+  .cover h1 { font-size: 46px; line-height: 1.08; margin: 10px 0 12px; font-weight: 700; letter-spacing: -0.01em; }
+  .cover .tagline { font-size: 17px; color: var(--ink2); margin: 0 0 30px; max-width: 460px; }
+  .cover .meta { font-size: 12.5px; color: var(--ink3); }
+
+  /* Contents */
+  .contents { break-after: page; padding-top: 24px; }
+  .contents h1 { font-size: 30px; margin: 0 0 22px; }
+  .toc { list-style: none; padding: 0; margin: 0; }
+  .toc li { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 0.75px solid var(--hair); font-size: 14.5px; }
+  .toc .n { width: 26px; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .toc .t { flex: 0 0 232px; }
+  .toc .d { color: var(--ink3); font-size: 12.5px; flex: 1; }
+  .toc .p { width: 30px; text-align: right; color: var(--ink2); font-variant-numeric: tabular-nums; }
+
+  /* Chapters */
+  .chapter { break-before: page; padding-top: 8px; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
+  .chapter > h1 { font-size: 30px; line-height: 1.15; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.01em; }
+  .lead { font-size: 15.5px; color: var(--ink2); margin: 0 0 18px; }
+  h2 { font-size: 18px; line-height: 1.3; margin: 22px 0 7px; font-weight: 650; break-after: avoid; }
+  h3 { font-size: 14.5px; margin: 16px 0 5px; font-weight: 650; break-after: avoid; }
+  ul, ol { margin: 0 0 10px; padding-left: 20px; }
+  li { margin: 0 0 4px; }
+  li::marker { color: var(--ink3); }
+  ol.steps { counter-reset: step; list-style: none; padding-left: 0; break-inside: avoid; }
+  li { break-inside: avoid; }
+  ol.steps > li { counter-increment: step; position: relative; padding-left: 30px; margin-bottom: 7px; }
+  ol.steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: 1px;
+    width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: white;
+    font-size: 11.5px; font-weight: 700; line-height: 20px; text-align: center;
+  }
+
+  figure { margin: 12px 0 16px; break-inside: avoid; }
+  figure img { display: block; width: 88%; margin: 0 auto; border-radius: 9px; border: 0.75px solid var(--hair); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07); }
+  figure.medium img { width: 74%; }
+  figure.narrow img { width: 58%; }
+  figure.settings img { width: 48%; }
+  figure.small img { width: 44%; }
+  .aside { display: flex; gap: 22px; align-items: flex-start; break-inside: avoid; }
+  .aside > div { flex: 1; min-width: 0; }
+  .aside > figure { flex: 0 0 38%; margin: 2px 0 12px; }
+  .aside > figure img { width: 100%; }
+  figure.pair .row { display: flex; gap: 16px; align-items: center; justify-content: center; }
+  figure.pair img { width: auto; height: 150px; border: none; box-shadow: none; }
+  figcaption { font-size: 11.5px; color: var(--ink3); margin-top: 7px; text-align: center; }
+
+  .tip, .note, .warn {
+    border-radius: 9px; padding: 10px 13px; margin: 10px 0 14px; break-inside: avoid; font-size: 13px;
+  }
+  .tip { background: var(--tip); }
+  .note { background: var(--fill); }
+  .warn { background: var(--warn); }
+  .tip strong:first-child, .note strong:first-child, .warn strong:first-child { display: block; margin-bottom: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 12.5px; break-inside: avoid; }
+  th { text-align: left; font-weight: 600; color: var(--ink2); font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--hair); }
+  td { padding: 6px 8px; border-bottom: 0.75px solid var(--hair); vertical-align: top; }
+  td:first-child { white-space: nowrap; }
+  code { font: 12px "SF Mono", Menlo, monospace; background: var(--fill); border-radius: 4px; padding: 1px 4px; }
+  kbd {
+    font: 600 11.5px -apple-system, sans-serif; color: var(--ink);
+    border: 0.75px solid rgba(0, 0, 0, 0.22); border-bottom-width: 1.5px; border-radius: 5px;
+    padding: 0 5px; background: #fafafa; white-space: nowrap;
+  }
+  .keys { white-space: nowrap; }
+  .ui { font-weight: 600; }
+  .keep { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<section class="cover">
+  <img src="images/icon.png" alt="">
+  <div class="eyebrow">Local Productivity</div>
+  <h1>LP User Guide</h1>
+  <p class="tagline">A calm home for your notes, tasks, calendar and projects — built on a folder of plain Markdown files.</p>
+  <div class="meta">Version 1.0.0 · November 2026 · For macOS 15 Sequoia and later</div>
+</section>
+
+<!-- Contents: page numbers are filled in by Scripts/make-user-guide.sh -->
+<section class="contents">
+  <h1>Contents</h1>
+  <ol class="toc">
+    <li data-toc="1"><span class="n">1</span><span class="t">Welcome to LP</span><span class="d">What LP is and how it treats your files</span><span class="p">00</span></li>
+    <li data-toc="2"><span class="n">2</span><span class="t">Getting started</span><span class="d">Install, open, choose your folder, find your way</span><span class="p">00</span></li>
+    <li data-toc="3"><span class="n">3</span><span class="t">Writing notes</span><span class="d">Pages, blocks, formatting, links, to-dos</span><span class="p">00</span></li>
+    <li data-toc="4"><span class="n">4</span><span class="t">Organising and finding</span><span class="d">Folders, Home, search, daily notes</span><span class="p">00</span></li>
+    <li data-toc="5"><span class="n">5</span><span class="t">Calendar</span><span class="d">Your calendars, events and dated notes</span><span class="p">00</span></li>
+    <li data-toc="6"><span class="n">6</span><span class="t">Boards</span><span class="d">One board per project, from to-do to done</span><span class="p">00</span></li>
+    <li data-toc="7"><span class="n">7</span><span class="t">Sharing a board</span><span class="d">A live progress page for anyone with the link</span><span class="p">00</span></li>
+    <li data-toc="8"><span class="n">8</span><span class="t">Reminders and notifications</span><span class="d">Due tasks, events and a daily summary</span><span class="p">00</span></li>
+    <li data-toc="9"><span class="n">9</span><span class="t">Widgets</span><span class="d">Today and Board on your desktop</span><span class="p">00</span></li>
+    <li data-toc="10"><span class="n">10</span><span class="t">Settings</span><span class="d">Make LP yours</span><span class="p">00</span></li>
+    <li data-toc="11"><span class="n">11</span><span class="t">Keyboard shortcuts</span><span class="d">Everything at your fingertips</span><span class="p">00</span></li>
+    <li data-toc="12"><span class="n">12</span><span class="t">Your files, safety and updates</span><span class="d">How LP saves, Obsidian, going back a version</span><span class="p">00</span></li>
+    <li data-toc="13"><span class="n">13</span><span class="t">Questions and troubleshooting</span><span class="d">When something doesn't look right</span><span class="p">00</span></li>
+  </ol>
+</section>
+
+<!-- 1 -->
+<section class="chapter" id="welcome">
+  <div class="label">Chapter 1</div>
+  <h1>Welcome to LP</h1>
+  <p class="lead">LP turns any folder of Markdown files on your Mac into a calm, organised workspace for notes, tasks, a calendar and project boards.</p>
+
+  <p>Point LP at a folder and it becomes your <strong>workspace</strong>. Inside it you get:</p>
+  <ul>
+    <li><strong>Notes</strong> that look finished while you write them — headings, lists, to-dos, quotes, callouts, tables and images, without any visible Markdown symbols.</li>
+    <li><strong>A calendar</strong> connected to your Apple, Google and Outlook calendars, with your daily notes and due tasks beside your events.</li>
+    <li><strong>Boards</strong> — Trello-style lists of cards for each of your projects, with progress tracking and a live page you can share.</li>
+    <li><strong>Reminders</strong> on the day things are due, alerts before meetings, and a short summary of your day.</li>
+    <li><strong>Widgets</strong> that show your day and your boards on the desktop.</li>
+  </ul>
+
+  <h2>Your files stay yours</h2>
+  <p>Everything LP shows is an ordinary text file in the folder you chose. There is no database, no account and nothing to export:</p>
+  <ul>
+    <li>Every page is a <code>.md</code> file. Folders in LP are folders on your Mac.</li>
+    <li>The same folder keeps working in <strong>Obsidian</strong>, in any text editor, in iCloud Drive or in Git.</li>
+    <li>Opening a note never changes it. When you edit, only what you changed is rewritten — the rest of the file stays exactly as it was.</li>
+    <li>Deleting moves files to the Trash, so nothing is lost by accident.</li>
+  </ul>
+
+  <div class="tip"><strong>Tip</strong>Already use Obsidian? Choose your vault folder in LP. Wiki links, callouts, Obsidian Tasks due dates and Kanban boards all work in both apps.</div>
+
+  <h2>About this guide</h2>
+  <p>Each chapter covers one part of LP. The screenshots use a sample workspace; yours will show your own notes. Menu commands are written like <span class="ui">File › New Page</span> and keys like <span class="keys"><kbd>⌘</kbd> <kbd>N</kbd></span>.</p>
+</section>
+
+<!-- 2 -->
+<section class="chapter" id="start">
+  <div class="label">Chapter 2</div>
+  <h1>Getting started</h1>
+  <p class="lead">Install LP, open it for the first time, and choose the folder that becomes your workspace.</p>
+
+  <h2>Install LP</h2>
+  <ol class="steps">
+    <li>Download <code>LP-1.0.0.zip</code> from the newest release on LP's <strong>Releases</strong> page: <span class="ui keys">github.com/LTF-Git-Dev/local-productivity/releases</span></li>
+    <li>Double-click the zip to unpack it, then drag <strong>LP</strong> into your <strong>Applications</strong> folder.</li>
+    <li>Open LP from Applications or Launchpad.</li>
+  </ol>
+  <div class="warn"><strong>If macOS says LP can't be opened</strong>LP is not distributed through the App Store, so the first time macOS may refuse to open it. Open <span class="ui">System Settings › Privacy &amp; Security</span>, scroll to the message about LP and click <span class="ui">Open Anyway</span>. You only need to do this once.</div>
+  <p>You can also build LP yourself: open <code>Local Productivity.xcodeproj</code> in Xcode 27 and press <span class="keys"><kbd>⌘</kbd> <kbd>R</kbd></span>.</p>
+
+  <h2>Choose your workspace</h2>
+  <p>The first time LP opens, it asks for a folder. Click <span class="ui">Choose a Folder…</span> and pick any folder — an Obsidian vault, a folder of notes, or a new empty folder. LP remembers it, and opens it again next time.</p>
+  <figure class="narrow"><img src="images/welcome.jpg" alt="The welcome screen"><figcaption>The welcome screen. Recently used folders appear here too.</figcaption></figure>
+  <p>To switch to another folder later, click the workspace name at the top of the sidebar, or choose <span class="ui">File › Open Workspace…</span> (<span class="keys"><kbd>⌘</kbd> <kbd>O</kbd></span>).</p>
+
+  <h2>Find your way around</h2>
+  <figure><img src="images/home.jpg" alt="Home"><figcaption>Home: quick actions, recently edited pages and every open task.</figcaption></figure>
+  <ul>
+    <li><strong>The sidebar</strong> (left) has <span class="ui">Search</span>, <span class="ui">Home</span>, <span class="ui">Calendar</span> and <span class="ui">Boards</span> at the top, your favourites, and every folder and page under <span class="ui">Pages</span>. <span class="ui">New Page</span> and the Settings button are at the bottom.</li>
+    <li><strong>The toolbar</strong> (top) has Back and Forward, the path to the current page, and buttons for the page: favourite (☆) and more options (•••).</li>
+    <li><strong>Home</strong> greets you with quick actions — New page, Today's note, New board and Search — the pages you worked on recently, and every open task in the workspace. Tick a task off right there.</li>
+  </ul>
+  <div class="tip"><strong>Tip</strong>Hide the sidebar with the button at its top for a distraction-free page; <span class="keys"><kbd>⌘</kbd> <kbd>[</kbd></span> and <span class="keys"><kbd>⌘</kbd> <kbd>]</kbd></span> go back and forward like a browser.</div>
+</section>
+
+<!-- 3 -->
+<section class="chapter" id="writing">
+  <div class="label">Chapter 3</div>
+  <h1>Writing notes</h1>
+  <p class="lead">Pages look like finished documents while you write them. You type naturally; LP takes care of the formatting.</p>
+
+  <h2>Create a page</h2>
+  <p>Press <span class="keys"><kbd>⌘</kbd> <kbd>N</kbd></span>, click <span class="ui">New Page</span> at the bottom of the sidebar, or hover a folder in the sidebar and click its <span class="ui">+</span>. Type a title, press <kbd>Return</kbd>, and start writing. The title is the file's name. Hover above the title and click <span class="ui">Add icon</span> to give the page an emoji.</p>
+  <figure><img src="images/editor.jpg" alt="A page in the editor"><figcaption>A page with headings, a numbered list, to-dos with due dates and a callout.</figcaption></figure>
+
+  <h2>Format a selection</h2>
+  <p>Select text and a small bar appears above it: bold, italic, strikethrough, code, highlight and link. The usual shortcuts work too — <span class="keys"><kbd>⌘</kbd> <kbd>B</kbd></span>, <span class="keys"><kbd>⌘</kbd> <kbd>I</kbd></span>, and <span class="keys"><kbd>⌘</kbd> <kbd>K</kbd></span> for a link.</p>
+  <figure><img src="images/formatbar.jpg" alt="The formatting bar"><figcaption>The formatting bar appears over a selection.</figcaption></figure>
+
+  <div class="keep">
+  <h2>Type Markdown, see the result</h2>
+  <p>Markdown still works as a way of <em>writing</em>: type the symbols and they turn into formatting as soon as you've finished.</p>
+  <table>
+    <tr><th>Type</th><th>To get</th></tr>
+    <tr><td><code>#</code> then a space (or <code>##</code>, <code>###</code>…)</td><td>A heading (level 1, 2, 3…)</td></tr>
+    <tr><td><code>-</code> then a space</td><td>A bulleted list</td></tr>
+    <tr><td><code>1.</code> then a space</td><td>A numbered list</td></tr>
+    <tr><td><code>[]</code> then a space</td><td>A to-do with a checkbox</td></tr>
+    <tr><td><code>&gt;</code> then a space</td><td>A quote</td></tr>
+    <tr><td><code>---</code></td><td>A divider line</td></tr>
+    <tr><td><code>**bold**</code> · <code>*italic*</code> · <code>~~strike~~</code></td><td><strong>bold</strong> · <em>italic</em> · <s>strike</s></td></tr>
+    <tr><td><code>==highlight==</code> · <code>`code`</code></td><td>highlighted text · <code>code</code></td></tr>
+    <tr><td><code>[[</code></td><td>A link to another page (pick it from the list)</td></tr>
+  </table>
+  </div>
+
+  <h2>The block menu</h2>
+  <p>On an empty line, type <kbd>/</kbd> to choose any kind of block: text, headings, to-dos, lists, quotes, callouts, code, dividers and tables. Keep typing to filter the list, then press <kbd>Return</kbd>.</p>
+  <figure class="narrow"><img src="images/slash.jpg" alt="The block menu"><figcaption>Type “/” on an empty line for the block menu.</figcaption></figure>
+
+  <h2>Move and change blocks</h2>
+  <p>Hover to the left of any paragraph to see its handle. Click <span class="ui">+</span> to add a block below, or the handle to <span class="ui">Turn Into</span> another kind of block, <span class="ui">Duplicate</span>, <span class="ui">Move Up</span>, <span class="ui">Move Down</span> or <span class="ui">Delete</span>. <span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd></span> turn the current block into a heading, list, quote, code block or callout, and <span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>0</kbd></span> back into text.</p>
+
+  <div class="keep">
+  <h2>To-dos, due dates and times</h2>
+  <p>Start a line with <code>[]</code> and a space to make a to-do. Click the box — or press <span class="keys"><kbd>⌘</kbd> <kbd>Return</kbd></span> — to tick it off. To give a to-do a due date, add it at the end:</p>
+  <table>
+    <tr><th>Write</th><th>Means</th></tr>
+    <tr><td><code>Call Mina 📅 2026-11-20</code></td><td>Due on 20 November (the Obsidian Tasks format)</td></tr>
+    <tr><td><code>Call Mina due: 2026-11-20</code></td><td>The same, without the emoji</td></tr>
+    <tr><td><code>Call Mina 📅 2026-11-20 14:30</code></td><td>Due at 2:30 PM — you'll be reminded then (also <code>2:30 pm</code> or <code>9am</code>)</td></tr>
+  </table>
+  </div>
+  <p>The date turns into a small chip: blue when it's today, orange when it's soon, red when it's overdue. Due to-dos appear on Home, in the calendar and in your reminders.</p>
+
+  <h2>Links, images and more</h2>
+  <ul>
+    <li><strong>Links between pages:</strong> type <code>[[</code> and choose a page. Links to pages that don't exist yet are shown differently; clicking one creates the page.</li>
+    <li><strong>Web links:</strong> paste a web address, or select text and press <span class="keys"><kbd>⌘</kbd> <kbd>K</kbd></span>.</li>
+    <li><strong>Images:</strong> paste or drag an image into the page. It's saved in your workspace's attachments folder.</li>
+    <li><strong>Tables:</strong> choose <span class="ui">Table</span> in the block menu; click a table to edit its rows and columns.</li>
+    <li><strong>Callouts:</strong> a coloured box for notes, tips and warnings, from the block menu.</li>
+  </ul>
+  <div class="note"><strong>Saving</strong>There's no Save command: LP saves a moment after you stop typing, and again when you switch pages or leave the app.</div>
+</section>
+
+<!-- 4 -->
+<section class="chapter" id="organising">
+  <div class="label">Chapter 4</div>
+  <h1>Organising and finding</h1>
+  <p class="lead">Folders, favourites and fast search keep everything within reach.</p>
+
+  <h2>Folders and pages</h2>
+  <ul>
+    <li><strong>New page or folder:</strong> <span class="keys"><kbd>⌘</kbd> <kbd>N</kbd></span> for a page, <span class="keys"><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd></span> for a folder — or right-click in the sidebar and choose <span class="ui">New Page</span>, <span class="ui">New Board…</span> or <span class="ui">New Folder</span>. The <span class="ui">+</span> next to <span class="ui">Pages</span> adds a page at the top level.</li>
+    <li><strong>Rename:</strong> double-click a page or folder in the sidebar, or edit the page's title.</li>
+    <li><strong>Move:</strong> drag pages and folders in the sidebar.</li>
+    <li><strong>Rename, duplicate, reveal in Finder, move to the Trash:</strong> right-click in the sidebar, or use ••• in the toolbar.</li>
+    <li><strong>Favourites:</strong> click ☆ in the toolbar to pin a page to the top of the sidebar.</li>
+  </ul>
+  <p>Click a folder to see its pages with a preview of each.</p>
+
+  <h2>Search</h2>
+  <p>Press <span class="keys"><kbd>⌘</kbd> <kbd>K</kbd></span> (or click <span class="ui">Search</span>). Type part of a title or any word in your notes; matching words are highlighted. Use <span class="keys"><kbd>↑</kbd> <kbd>↓</kbd></span> and <kbd>Return</kbd> to open a result. If nothing matches, <span class="ui">Create</span> makes a new page with that name.</p>
+  <figure class="medium"><img src="images/search.jpg" alt="Search"><figcaption>Search finds titles and words inside pages and boards.</figcaption></figure>
+
+  <h2>Daily notes</h2>
+  <p>Press <span class="keys"><kbd>⌘</kbd> <kbd>T</kbd></span> for today's note — a page named after the date (for example <code>2026-11-18</code>) in your <span class="ui">Daily Notes</span> folder, created the first time you open it. Daily notes also appear in the calendar. Change the folder in <span class="ui">Settings › General</span>.</p>
+</section>
+
+<!-- 5 -->
+<section class="chapter" id="calendar">
+  <div class="label">Chapter 5</div>
+  <h1>Calendar</h1>
+  <p class="lead">Your real calendars, with your daily notes and due tasks beside them. Changes you make in LP are saved back to the calendar they came from.</p>
+  <figure><img src="images/calendar.jpg" alt="The calendar"><figcaption>The month view with events, daily notes and the selected day's details.</figcaption></figure>
+
+  <h2>Using the calendar</h2>
+  <ul>
+    <li>Click <span class="ui">Calendar</span> in the sidebar or press <span class="keys"><kbd>⌘</kbd> <kbd>2</kbd></span>.</li>
+    <li>Move between months with the arrows; <span class="ui">Today</span> jumps back.</li>
+    <li>Click a day to see its events, due tasks and daily note on the right. <span class="ui">Open daily note</span> — or double-clicking the day — opens (or creates) that day's note.</li>
+    <li><span class="ui">Calendars</span> shows or hides individual calendars.</li>
+  </ul>
+
+  <h2>Connect your calendars</h2>
+  <div class="aside">
+    <div>
+      <p>Open <span class="ui">Settings › Calendars</span>:</p>
+      <ul>
+        <li><strong>Apple Calendar</strong> — click <span class="ui">Connect Apple Calendar…</span> and allow access. This includes iCloud and any Google, Exchange or other account you've added in <span class="ui">System Settings › Internet Accounts</span>.</li>
+        <li><strong>Google Calendar</strong> and <strong>Microsoft Outlook</strong> can also be connected directly. Each needs a free <em>client ID</em> of your own; the step-by-step instructions are in the same settings tab (<span class="ui">How to get a … client ID</span>). LP signs in through the system's secure sign-in sheet and keeps the tokens in your Keychain.</li>
+      </ul>
+    </div>
+    <figure><img src="images/settings-calendars.jpg" alt="Calendar settings"><figcaption>Settings › Calendars.</figcaption></figure>
+  </div>
+
+  <h2>Add and change events</h2>
+  <div class="aside">
+    <div>
+      <p>Select a day and click <span class="ui">+</span> to add an event. Choose the time, the calendar, a location and notes, then <span class="ui">Add Event</span>. Click an event to change or delete it. For a repeating event, LP asks whether to change just this one or the whole series.</p>
+    </div>
+    <figure><img src="images/event.jpg" alt="The event editor"><figcaption>The event editor.</figcaption></figure>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="chapter" id="boards">
+  <div class="label">Chapter 6</div>
+  <h1>Boards</h1>
+  <p class="lead">Boards are lists of cards — like Trello — for following a project from to-do to done. Make one for each project.</p>
+
+  <h2>All your boards</h2>
+  <p>Click <span class="ui">Boards</span> in the sidebar (<span class="keys"><kbd>⌘</kbd> <kbd>3</kbd></span>) to see every board with how far along it is, what's overdue and what's due soon. Sort by recently edited, name or progress. Right-click a board to rename it, show it in Finder or move it to the Trash.</p>
+  <figure><img src="images/boards.jpg" alt="The Boards screen"><figcaption>Boards: every board at a glance.</figcaption></figure>
+
+  <h2>Make a new board</h2>
+  <div class="aside">
+    <div>
+      <ol class="steps">
+        <li>Click <span class="ui">New Board</span> on the Boards screen, or press <span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd></span>.</li>
+        <li>Give it a name — for example <em>Website launch</em>.</li>
+        <li>Choose a template: <strong>Simple</strong> (To do · In progress · Done), <strong>Project</strong>, <strong>Weekly</strong>, <strong>Content</strong> or <strong>Bugs</strong>.</li>
+        <li>Choose the folder it goes in, then click <span class="ui">Create Board</span>.</li>
+      </ol>
+    </div>
+    <figure><img src="images/newboard.jpg" alt="New Board"><figcaption>Lists can be renamed, added and reordered later.</figcaption></figure>
+  </div>
+
+  <h2>Lists and cards</h2>
+  <figure><img src="images/board.jpg" alt="A board"><figcaption>A board: each list shows its cards, due dates, tags and checklists.</figcaption></figure>
+  <ul>
+    <li><strong>Add a card:</strong> click <span class="ui">Add a card</span> at the bottom of a list, type, press <kbd>Return</kbd>.</li>
+    <li><strong>Move a card:</strong> drag it — or select it and press <span class="keys"><kbd>⌘</kbd> <kbd>←</kbd></span> or <span class="keys"><kbd>⌘</kbd> <kbd>→</kbd></span>.</li>
+    <li><strong>Lists:</strong> <span class="ui">Add List</span> at the end of the board; each list's ••• menu can rename, move or delete it. <span class="ui">Cards Here Count as Done</span> marks a list (like <em>Done</em>) whose cards are finished.</li>
+    <li><strong>Undo</strong> (<span class="keys"><kbd>⌘</kbd> <kbd>Z</kbd></span>) works for every change on a board.</li>
+  </ul>
+
+  <h2>Card details</h2>
+  <div class="aside">
+    <div>
+      <p>Click a card (or select it and press <kbd>Return</kbd>) to edit it:</p>
+      <ul>
+        <li><strong>Title</strong>, <strong>list</strong> and <strong>tags</strong> (comma separated).</li>
+        <li><strong>Due date</strong> and <strong>Remind at a time</strong> — you'll get a reminder on that day, at that time.</li>
+        <li><strong>Notes</strong> in Markdown. Lines starting with <code>- [ ]</code> become a checklist, and the card shows its progress (for example 2/3).</li>
+        <li>••• at the bottom left: <span class="ui">Archive</span> or <span class="ui">Delete</span>.</li>
+      </ul>
+    </div>
+    <figure><img src="images/card.jpg" alt="Card details"><figcaption>A card's details and history.</figcaption></figure>
+  </div>
+
+  <h2>Progress</h2>
+  <p>Click the chart button in the toolbar to open the progress panel: percent done, cards per list, overdue and due-soon cards, what got done this week, the average time to finish a card, a chart over time and a history of every change — including changes made in another app while LP was closed.</p>
+  <figure><img src="images/progress.jpg" alt="The progress panel"><figcaption>The progress panel beside the board. In a narrow window it floats over the lists.</figcaption></figure>
+  <div class="note"><strong>Boards are files too</strong>A board is a Markdown file in the format of Obsidian's Kanban plugin, so it opens in Obsidian as well. Its history is kept in a hidden <code>.lp</code> folder in your workspace.</div>
+</section>
+
+<!-- 7 -->
+<section class="chapter" id="sharing">
+  <div class="label">Chapter 7</div>
+  <h1>Sharing a board</h1>
+  <p class="lead">Share how a project is going as a live, read-only web page. Anyone with the link can open it on any device, without an account.</p>
+
+  <p>The shared page shows the board's lists, card titles, due dates, tags, progress and recent activity. <strong>Card notes are never shared.</strong> The page is published as a <em>secret</em> GitHub Gist: it isn't listed or searchable, and can only be found with its link.</p>
+
+  <h2>Once: connect GitHub</h2>
+  <div class="aside">
+    <div>
+      <ol class="steps">
+        <li>On GitHub (a free account is enough), create a token that can only make gists: <span class="ui">github.com/settings/tokens/new?scopes=gist</span>. The <span class="ui">Create a Token on GitHub</span> link in LP opens it for you.</li>
+        <li>In LP, open <span class="ui">Settings › Sharing</span>, paste the token and click <span class="ui">Connect</span>. LP checks it and keeps it in your Keychain.</li>
+      </ol>
+    </div>
+    <figure><img src="images/settings-sharing.jpg" alt="Sharing settings"><figcaption>Settings › Sharing.</figcaption></figure>
+  </div>
+
+  <div class="keep">
+  <h2>Share a board</h2>
+  <ol class="steps">
+    <li>Open the board and choose <span class="ui">••• › Share Progress…</span> (or click the chart button).</li>
+    <li>In the progress panel, under <span class="ui">Share</span>, click <span class="ui">Share Progress</span>.</li>
+    <li>Click <span class="ui">Copy Link</span> and send the link by Messages, email or Slack.</li>
+  </ol>
+  </div>
+  <p>The page updates by itself as the board changes (<span class="ui">Keep up to date automatically</span>), or click <span class="ui">Update Now</span>. <span class="ui">Stop Sharing</span> deletes the page, and its link stops working.</p>
+
+  <h2>Other ways to share</h2>
+  <ul>
+    <li><span class="ui">Export Report…</span> in the progress panel saves a self-contained HTML report you can email or AirDrop.</li>
+    <li>People who use Obsidian with the Kanban plugin can open the board file itself from a shared folder.</li>
+  </ul>
+</section>
+
+<!-- 8 -->
+<section class="chapter" id="reminders">
+  <div class="label">Chapter 8</div>
+  <h1>Reminders and notifications</h1>
+  <p class="lead">LP reminds you on the day things are due, before your meetings, and each morning with a summary of your day — even when LP is closed.</p>
+
+  <h2>What you'll get</h2>
+  <div class="aside">
+    <div>
+      <ul>
+        <li><strong>Due reminders</strong> on the day a to-do or card is due — at its own time if it has one (<code>📅 2026-11-20 14:30</code> on a to-do, <span class="ui">Remind at a time</span> on a card), otherwise at 9:00.</li>
+        <li><strong>Event alerts</strong> 10 minutes before timed events in your connected calendars. Apple Calendar already alerts for its own events, so those are left out unless you include them.</li>
+        <li><strong>A daily summary</strong> at 8:30: what's due, what's overdue and what's on your calendar. Days with nothing on are skipped.</li>
+      </ul>
+      <p>Each reminder has buttons: <span class="ui">Mark as Done</span> (ticks the box in the note or board for you), <span class="ui">Remind Me in an Hour</span> and <span class="ui">Remind Me Tomorrow</span>. Clicking a reminder opens its page or board.</p>
+    </div>
+    <figure><img src="images/settings-notifications.jpg" alt="Notification settings"><figcaption>Settings › Notifications.</figcaption></figure>
+  </div>
+
+  <h2>Turn them on</h2>
+  <p>The first time there's something to remind you about, macOS asks whether LP may send notifications — click <span class="ui">Allow</span>. Choose what you're reminded about, and when, in <span class="ui">Settings › Notifications</span>. The bottom of that tab lists the reminders actually waiting, so you can check they're set up; <span class="ui">Send a Test</span> shows what they look like.</p>
+  <div class="tip"><strong>Tip</strong>Reminders are planned a week ahead and refreshed whenever LP is open, so open LP every few days to keep them current.</div>
+</section>
+
+<!-- 9 -->
+<section class="chapter" id="widgets">
+  <div class="label">Chapter 9</div>
+  <h1>Widgets</h1>
+  <p class="lead">Keep your day and your projects in view on the desktop or in Notification Center.</p>
+  <figure class="pair"><div class="row"><img src="images/widget-today.png" alt="Today widget"><img src="images/widget-board.png" alt="Board widget"></div><figcaption>The Today widget (left) and the Board widget (right).</figcaption></figure>
+  <ul>
+    <li><strong>Today</strong> (small, medium, large): the date, what's due and overdue, the events still to come, and tomorrow when there's room. Click an item to open it in LP.</li>
+    <li><strong>Board</strong> (small, medium): a board's progress, overdue cards and lists. Right-click the widget and choose <span class="ui">Edit “Board”</span> to pick which board.</li>
+  </ul>
+  <h2>Add a widget</h2>
+  <p>Click the date and time in the menu bar, scroll down and click <span class="ui">Edit Widgets</span>. Find <strong>LP</strong>, then drag a widget to the desktop or Notification Center.</p>
+  <div class="warn"><strong>Widgets need one-time setup</strong>Widgets read what LP shares with them, and macOS only allows that for apps signed with an Apple developer team — a free Apple ID works. Until then the widgets show <em>Widgets need setting up</em>. To set it up: in Xcode, choose <span class="ui">Settings › Accounts › +</span> and sign in with your Apple ID; open the project, choose your team under <span class="ui">Signing &amp; Capabilities</span> for the <span class="ui">Local Productivity</span> and <span class="ui">LPWidgetsExtension</span> targets, and run LP again. (Or ask for a build signed with your team.)</div>
+</section>
+
+<!-- 10 -->
+<section class="chapter" id="settings">
+  <div class="label">Chapter 10</div>
+  <h1>Settings</h1>
+  <p class="lead">Open Settings with <span class="keys"><kbd>⌘</kbd> <kbd>,</kbd></span> or the gear at the bottom of the sidebar. The Notifications, Calendars and Sharing tabs have chapters of their own.</p>
+
+  <h2>General</h2>
+  <p>Theme (automatic, light or dark), the folder for daily notes, and your workspace folder.</p>
+
+  <h2>Editor — make the text yours</h2>
+  <figure class="settings"><img src="images/settings-editor.jpg" alt="Editor settings"><figcaption>Settings › Editor, with a live preview.</figcaption></figure>
+  <table>
+    <tr><th>Setting</th><th>Choices</th></tr>
+    <tr><td>Font</td><td>Default, Rounded, Serif, Mono — or <strong>Other</strong>, then any font installed on your Mac</td></tr>
+    <tr><td>Size</td><td>Any size from 12 to 24 points (15 is the default). <span class="keys"><kbd>⌘</kbd> <kbd>+</kbd></span> and <span class="keys"><kbd>⌘</kbd> <kbd>−</kbd></span> change it while you write; <span class="keys"><kbd>⌘</kbd> <kbd>0</kbd></span> goes back to 15</td></tr>
+    <tr><td>Line spacing</td><td>Compact, Default or Relaxed</td></tr>
+    <tr><td>Page width</td><td>Narrow, Default, Wide or Full (the whole window)</td></tr>
+    <tr><td>Interface size</td><td>Small, Default or Large — the sidebar, lists, boards, Home and the calendar</td></tr>
+    <tr><td>Spelling</td><td>Check spelling while typing</td></tr>
+  </table>
+  <p>The page's ••• menu has the same font, size, spacing and width choices.</p>
+</section>
+
+<!-- 11 -->
+<section class="chapter" id="shortcuts">
+  <div class="label">Chapter 11</div>
+  <h1>Keyboard shortcuts</h1>
+  <p class="lead">The full list is also in LP's menus.</p>
+  <h2>Everywhere</h2>
+  <table>
+    <tr><td><span class="keys"><kbd>⌘</kbd> <kbd>N</kbd></span></td><td>New page</td><td><span class="keys"><kbd>⌘</kbd> <kbd>K</kbd></span> · <span class="keys"><kbd>⌘</kbd> <kbd>P</kbd></span></td><td>Search · Quick open</td></tr>
+    <tr><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd></span></td><td>New board</td><td><span class="keys"><kbd>⌘</kbd> <kbd>T</kbd></span></td><td>Today's note</td></tr>
+    <tr><td><span class="keys"><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd></span></td><td>New folder</td><td><span class="keys"><kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span></td><td>Home · Calendar · Boards</td></tr>
+    <tr><td><span class="keys"><kbd>⌘</kbd> <kbd>O</kbd></span></td><td>Open a workspace</td><td><span class="keys"><kbd>⌘</kbd> <kbd>[</kbd></span> · <span class="keys"><kbd>⌘</kbd> <kbd>]</kbd></span></td><td>Back · Forward</td></tr>
+    <tr><td><span class="keys"><kbd>⌘</kbd> <kbd>,</kbd></span></td><td>Settings</td><td><span class="keys"><kbd>⌘</kbd> <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></span></td><td>Bigger · smaller · default text</td></tr>
+  </table>
+  <h2>Writing</h2>
+  <table>
+    <tr><td><span class="keys"><kbd>⌘</kbd> <kbd>B</kbd></span> · <span class="keys"><kbd>⌘</kbd> <kbd>I</kbd></span></td><td>Bold · italic</td><td><span class="keys"><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>X</kbd></span></td><td>Strikethrough</td></tr>
+    <tr><td><span class="keys"><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd></span></td><td>Code</td><td><span class="keys"><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>H</kbd></span></td><td>Highlight</td></tr>
+    <tr><td><span class="keys"><kbd>⌘</kbd> <kbd>K</kbd></span></td><td>Link the selection</td><td><span class="keys"><kbd>⌘</kbd> <kbd>Return</kbd></span></td><td>Tick a to-do off</td></tr>
+    <tr><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>0</kbd></span></td><td>Turn into text</td><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span></td><td>Heading 1, 2, 3</td></tr>
+    <tr><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>4</kbd></span></td><td>To-do list</td><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>5</kbd></span> · <kbd>6</kbd></td><td>Bulleted · numbered list</td></tr>
+    <tr><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>7</kbd></span></td><td>Quote</td><td><span class="keys"><kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>8</kbd></span> · <kbd>9</kbd></td><td>Code block · callout</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Block menu (on an empty line)</td><td><span class="keys"><kbd>[</kbd><kbd>[</kbd></span></td><td>Link to a page</td></tr>
+  </table>
+  <h2>Boards</h2>
+  <table>
+    <tr><td><kbd>Return</kbd></td><td>Open the selected card</td><td><span class="keys"><kbd>⌘</kbd> <kbd>←</kbd></span> · <span class="keys"><kbd>⌘</kbd> <kbd>→</kbd></span></td><td>Move it to the previous · next list</td></tr>
+    <tr><td><kbd>Delete</kbd></td><td>Delete the selected card</td><td><span class="keys"><kbd>⌘</kbd> <kbd>Z</kbd></span></td><td>Undo</td></tr>
+  </table>
+</section>
+
+<!-- 12 -->
+<section class="chapter" id="files">
+  <div class="label">Chapter 12</div>
+  <h1>Your files, safety and updates</h1>
+  <p class="lead">How LP looks after your notes, and how to update — or go back to an earlier version.</p>
+
+  <h2>How LP saves</h2>
+  <ul>
+    <li><strong>Nothing is written unless you edit.</strong> Opening a note or a board never changes it.</li>
+    <li><strong>Untouched text keeps its exact bytes</strong> — spacing, list numbers, line endings, encoding.</li>
+    <li><strong>Nothing is dropped.</strong> Markdown that LP doesn't display (HTML, math, footnotes, comments) is kept as it is.</li>
+    <li><strong>Saves are safe:</strong> files are replaced in one step, keeping their creation dates and Finder tags.</li>
+    <li><strong>Changes made elsewhere</strong> — in Obsidian, an editor or on another Mac — show up straight away.</li>
+  </ul>
+
+  <h2>Safe with what's in your notes</h2>
+  <p>Notes can come from anywhere, so LP is careful with them. Links to apps, scripts or installers never run — LP shows the file in Finder instead — and links that open other apps ask first. Nothing in a note can make LP read or write outside your workspace folder.</p>
+
+  <h2>Where things are kept</h2>
+  <table>
+    <tr><th>What</th><th>Where</th></tr>
+    <tr><td>Notes and boards</td><td><code>.md</code> files in your workspace folder</td></tr>
+    <tr><td>Images you paste</td><td>The workspace's attachments folder</td></tr>
+    <tr><td>Board history</td><td>A hidden <code>.lp</code> folder in your workspace</td></tr>
+    <tr><td>Calendar and sharing tokens</td><td>Your Mac's Keychain</td></tr>
+  </table>
+
+  <h2>Updates and going back</h2>
+  <p>Each version of LP is published on the <strong>Releases</strong> page with its app. A new version is only released after you've approved it, and the versions before it stay there, so you can go back at any time (developers: <code>Scripts/rollback.sh</code>, see the README):</p>
+  <ol class="steps">
+    <li>Quit LP.</li>
+    <li>Download the earlier version's zip from the Releases page, unpack it, and replace LP in Applications.</li>
+    <li>Open LP — your notes, boards and settings are untouched, because they live in your folder and preferences, not in the app.</li>
+  </ol>
+</section>
+
+<!-- 13 -->
+<section class="chapter" id="troubleshooting">
+  <div class="label">Chapter 13</div>
+  <h1>Questions and troubleshooting</h1>
+
+  <h3>LP asks me to choose my folder again</h3>
+  <p>This can happen after installing a new version that's signed differently. Choose the same folder — nothing in it is changed.</p>
+
+  <h3>macOS won't open LP</h3>
+  <p>Open <span class="ui">System Settings › Privacy &amp; Security</span> and click <span class="ui">Open Anyway</span> next to the message about LP.</p>
+
+  <h3>I don't get reminders</h3>
+  <p>Check <span class="ui">System Settings › Notifications › LP</span> and turn on <span class="ui">Allow Notifications</span>. In LP, <span class="ui">Settings › Notifications</span> shows whether notifications are on and which reminders are waiting; <span class="ui">Send a Test</span> sends one straight away. Focus modes can also hold notifications back.</p>
+
+  <h3>The widgets say “Widgets need setting up”</h3>
+  <p>See chapter <em>Widgets</em>: LP needs to be signed with your Apple ID team once.</p>
+
+  <h3>Google or Outlook won't connect</h3>
+  <p>Check the client ID in <span class="ui">Settings › Calendars</span>. A Google client ID must be of the <em>iOS</em> type, and a Microsoft one needs the <em>iOS / macOS</em> platform — the instructions in that tab walk you through it.</p>
+
+  <h3>Sharing a board fails</h3>
+  <p>The GitHub token must have the <code>gist</code> permission and must not have expired. Disconnect and connect a new token in <span class="ui">Settings › Sharing</span>.</p>
+
+  <h3>Text looks too big or too small</h3>
+  <p>Use <span class="keys"><kbd>⌘</kbd> <kbd>+</kbd></span> / <span class="keys"><kbd>⌘</kbd> <kbd>−</kbd></span> in a page, <span class="ui">Settings › Editor › Size</span>, or <span class="ui">Interface size</span> for the rest of LP.</p>
+
+  <h3>I changed a note in another app</h3>
+  <p>LP notices and shows the new version. If you were editing the same note in LP at that moment, your edits in LP are kept and saved.</p>
+
+  <h3>Where can I read more?</h3>
+  <p>The README in the repository describes LP's features and development, and <code>CODEX.md</code> explains how it's built.</p>
+</section>
+
+<script>
+  for (const heading of document.querySelectorAll('.chapter h2, .chapter h3')) {
+    const next = heading.nextElementSibling;
+    if (!next || heading.parentElement.classList.contains('keep')) continue;
+    const group = document.createElement('div');
+    group.className = 'keep';
+    heading.before(group);
+    group.append(heading, next);
+  }
+</script>
+</body>
+</html>
