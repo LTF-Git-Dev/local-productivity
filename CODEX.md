@@ -41,7 +41,7 @@ the user's files.**
 | Versions | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` at **project level** (both targets share them) |
 | Signing | Ad hoc ("Sign to Run Locally") unless `LP_TEAM_ID` is set; sandboxed, hardened runtime, no `get-task-allow` in Release |
 | Repository | `github.com/LTF-Git-Dev/local-productivity` — public since 2026-11-23 with a fresh history (the earlier private history is the private `local-productivity-archive`; never push it here); remote `origin`, `gh` authenticated |
-| Branches | `main` = the official release; work on `feature/…` or `fix/…` |
+| Branches | `main` = the official release (1.0.0); `release/1.0.1-beta.1` = the published beta (2026-11-23); work on `feature/…` or `fix/…` (off the beta branch until 1.0.1 is official) |
 | Releases | GitHub Releases with the app zip and the user guide, via `Scripts/deploy.sh` only: **a beta first** (a pre-release from the branch, after the owner's yes), **official** (from `main`, marked Latest) only once the owner confirmed the beta — see `docs/RELEASING.md`. First release **1.0.0** (2026-11-18); notes come from `CHANGELOG.md` |
 
 ## 3. Repository map

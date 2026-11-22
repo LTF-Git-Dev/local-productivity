@@ -9,6 +9,9 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+- 2026-11-23 — **v1.0.1-beta.1 published** (GitHub pre-release from `release/1.0.1-beta.1`, at the
+  owner's yes); checked signed-out: listed by the API, `update.json` signature valid, zip checksum
+  matches.
 - 2026-11-23 — **The repository is public**, at the owner's request (option C, recommended by
   Codex): a fresh history under the same name, so LP's updater and the website's links keep
   working; the old private history is kept as `local-productivity-archive` and a local bundle.

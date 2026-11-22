@@ -130,8 +130,8 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 | BD-14 | **New boards from templates** (Simple, Project, Weekly, Content, Bugs) with a name and folder — one board per project | ✅ |
 | BD-15 | Lists resize with the window; the progress panel sits beside the lists or floats when narrow | ✅ |
 | BD-16 | Card assignees, covers and attachments | ⬜ |
-| BD-17 | **A board keeps its identity**: renaming or moving it (in LP or elsewhere) keeps its history and sharing; copies (duplicated in LP, or copied in Finder or Obsidian) get their own, so nothing on a copy reaches the original's history or shared page | ✅ next release (`feature/codex-review`) |
-| BD-18 | **Only this Mac's shared pages are updated**: a share record found in the folder (from another Mac, LP 1.0.0, or whoever the folder came from) changes nothing until the person chooses *Keep It Updated From Here* | ✅ next release (`feature/codex-review`) |
+| BD-17 | **A board keeps its identity**: renaming or moving it (in LP or elsewhere) keeps its history and sharing; copies (duplicated in LP, or copied in Finder or Obsidian) get their own, so nothing on a copy reaches the original's history or shared page | ✅ 1.0.1 (beta; built on `feature/codex-review`) |
+| BD-18 | **Only this Mac's shared pages are updated**: a share record found in the folder (from another Mac, LP 1.0.0, or whoever the folder came from) changes nothing until the person chooses *Keep It Updated From Here* | ✅ 1.0.1 (beta; built on `feature/codex-review`) |
 
 ### 5.6 Reminders and notifications
 
