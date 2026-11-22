@@ -231,8 +231,16 @@ need setting up" until LP is signed with a team — a free Apple ID works:
 
 ## Development
 
+New here? You need macOS 15+ and Xcode 27. Clone the repository, run `Scripts/test.sh` (every suite
+must say 0 failed) and open `Local Productivity.xcodeproj`. [CODEX.md](CODEX.md) is the tour of the
+code; [AGENTS.md](AGENTS.md) the rules for changes (a `feature/…` or `fix/…` branch, tests with every
+change); [docs/RELEASING.md](docs/RELEASING.md) how versions ship (a beta first, always). `main` is
+the latest official release; the newest beta's branch is named on the
+[Releases page](https://github.com/LTF-Git-Dev/local-productivity/releases). Security problems:
+see [SECURITY.md](SECURITY.md) (private reporting is on).
+
 ```sh
-Scripts/test.sh                  # 933 checks: markdown, calendar, safety, widgets, reminders, tasks, search, boards, ownership
+Scripts/test.sh                  # 993 checks: markdown, calendar, safety, widgets, reminders, tasks, search, updates, boards, ownership
 Scripts/build.sh                 # Debug build, the same as Xcode's (LP_TEAM_ID=… to sign with a team)
 Scripts/build.sh harness         # Build used for UI snapshots
 Scripts/snapshot.sh home "route:home ;; shot:home"

@@ -389,7 +389,7 @@ Harness steps worth knowing (full list in `Debug/SnapshotHarness.swift`):
   returns, archive them (zipped, keeping rollback copies) rather than only unregistering.
 - Screenshots in the guide or README that show the app icon (the welcome screen) must be retaken
   when the icon changes.
-- Brand sources and the renderer live in the separate sibling **`../LP Design/brand/`**, never
+- Brand sources and the renderer live in the separate sibling **`../LP Design/brand/`** (its own git repository, backed up to the private `github.com/LTF-Git-Dev/lp-design` since 2026-11-23 — commit and push there after brand work), never
   in the app source tree. Do not recreate `design/` or `Scripts/make-icon.swift`. Current identity:
   **08 Orbit Bear**, chosen by the owner on 20 November 2026: charcoal bear, cyan headset,
   round ears, small eyes/nose/smile and soft red cheeks. Full bear/ring at 64 px and above;

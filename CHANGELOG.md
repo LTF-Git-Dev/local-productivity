@@ -9,6 +9,11 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+- 2026-11-23 — **Ready for the next session and for contributors:** a fresh clone of the public
+  repository builds and passes all 993 tests; README's Development section says where to start
+  (and its test count is current); repository topics added; LP Design (brand sources) backed up to
+  the private `LTF-Git-Dev/lp-design`.
+
 - 2026-11-23 — **Docs brought up to date** after the beta and going public: the user guide's cover
   says 1.0.1 (PDF rebuilt and re-attached to the beta's release); README tells first-time users
   how to open LP (Privacy & Security → Open Anyway); PRD current version, document dates.
