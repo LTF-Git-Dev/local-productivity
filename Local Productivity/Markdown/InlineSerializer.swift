@@ -262,9 +262,26 @@ nonisolated enum InlineSerializer {
             destination = "<\(destination)>"
         }
         if let title = link.title {
-            return "\(destination) \"\(title.replacingOccurrences(of: "\"", with: "\\\""))\""
+            return "\(destination) \(quotedTitle(title))"
         }
         return destination
+    }
+
+    /// A link or image title in double quotes: its quotes, and any backslash that would read as
+    /// an escape, are escaped once.
+    static func quotedTitle(_ title: String) -> String {
+        let characters = Array(title)
+        var result = "\""
+        for (index, character) in characters.enumerated() {
+            if character == "\"" {
+                result += "\\\""
+            } else if character == "\\", index + 1 == characters.count || characters[index + 1].isASCIIPunctuation {
+                result += "\\\\"
+            } else {
+                result.append(character)
+            }
+        }
+        return result + "\""
     }
 
     /// Shrinks emphasis so its delimiters touch non-space text and are valid flanking runs, then

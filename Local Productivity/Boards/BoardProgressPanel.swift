@@ -17,13 +17,26 @@ import UniformTypeIdentifiers
 final class SharingAccount {
     static let shared = SharingAccount()
 
-    private(set) var hasToken = GistPublisher.hasToken
+    private(set) var hasToken: Bool
     /// The GitHub user the token belongs to, once it has been checked.
     var login: String?
+    /// Where the person can end LP's access on GitHub (depends on how they connected).
+    private(set) var accessPage: URL?
+    /// Counts connects and disconnects, so a sign-in that began before one can't undo it.
+    @ObservationIgnored private(set) var credentialChanges = 0
+
+    init() {
+        let saved = GistPublisher.token
+        hasToken = saved != nil
+        accessPage = saved.map(GitHubTokenPages.accessPage(forToken:))
+    }
 
     func setToken(_ token: String?) throws {
         try GistPublisher.setToken(token)
-        hasToken = GistPublisher.hasToken
+        credentialChanges += 1
+        let saved = GistPublisher.token
+        hasToken = saved != nil
+        accessPage = saved.map(GitHubTokenPages.accessPage(forToken:))
         if !hasToken { login = nil }
     }
 }
@@ -464,8 +477,6 @@ private struct ShareSection: View {
     @State private var confirmingStop = false
     @State private var copied = false
 
-    private var account: SharingAccount { .shared }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Share")
@@ -473,22 +484,50 @@ private struct ShareSection: View {
                 .foregroundStyle(Color.lpInkTertiary)
 
             if let share = store.share {
-                shared(share)
+                if store.shareIsTrusted {
+                    shared(share)
+                } else {
+                    setUpElsewhere(share)
+                }
             } else {
-                Text("Publish a live progress page anyone with the link can open, on any device. It shows lists, card titles, due dates and recent activity. Card notes stay private.")
+                Text("Publish a live progress page anyone with the link can open, on any device — free, from your own Google Drive (a Google Doc) or GitHub (a secret gist). It shows lists, card titles, due dates, tags and recent activity. Card notes stay private.")
                     .font(.lp(size: 12))
                     .foregroundStyle(Color.lpInkSecondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
-                if account.hasToken {
+                let destinations = SharingServices.destinations
+                if let only = destinations.first, destinations.count == 1 {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Button {
+                                Task { await store.publish(to: only) }
+                            } label: {
+                                Label("Share Progress", systemImage: "link")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(store.isPublishing)
+                            .accessibilityHint(SharingServices.title(of: only))
+                            if store.isPublishing { ProgressView().controlSize(.small) }
+                        }
+                        Text(SharingServices.title(of: only))
+                            .font(.lp(size: 11.5))
+                            .foregroundStyle(Color.lpInkTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if !destinations.isEmpty {
                     HStack(spacing: 8) {
-                        Button {
-                            Task { await store.publish() }
+                        Menu {
+                            ForEach(destinations, id: \.self) { destination in
+                                Button(SharingServices.title(of: destination)) {
+                                    Task { await store.publish(to: destination) }
+                                }
+                            }
                         } label: {
                             Label("Share Progress", systemImage: "link")
                         }
-                        .buttonStyle(.borderedProminent)
+                        .fixedSize()
                         .disabled(store.isPublishing)
+                        .accessibilityHint("Choose where the page goes: Google Drive or GitHub")
                         if store.isPublishing { ProgressView().controlSize(.small) }
                     }
                 } else {
@@ -514,7 +553,9 @@ private struct ShareSection: View {
                 Task { await store.stopSharing() }
             }
         } message: {
-            Text("The progress page is deleted from GitHub and its link stops working.")
+            Text(store.share?.service == .googleDrive
+                 ? "The progress page is deleted from your Google Drive and its link stops working."
+                 : "The progress page is deleted from GitHub and its link stops working.")
         }
     }
 
@@ -525,7 +566,7 @@ private struct ShareSection: View {
                 Image(systemName: "link")
                     .foregroundStyle(Color.lpAccentText)
                     .accessibilityHidden(true)
-                Text(share.url.absoluteString.replacingOccurrences(of: "https://", with: ""))
+                Text(share.pageURL?.absoluteString.replacingOccurrences(of: "https://", with: "") ?? "—")
                     .font(.lp(size: 12))
                     .foregroundStyle(Color.lpInk)
                     .lineLimit(1)
@@ -537,17 +578,33 @@ private struct ShareSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.lpFillSubtle, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+            Text(SharingServices.whereItLives(share))
+                .font(.lp(size: 11.5))
+                .foregroundStyle(Color.lpInkTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !SharingServices.isReady(share) {
+                // Its GitHub token or Google account isn't here any more: say so, and what to do.
+                Text(share.service == .googleDrive
+                     ? "Its Google account isn’t connected on this Mac, so the page can’t be updated from here. Stop Sharing lets go of it."
+                     : "GitHub isn’t connected on this Mac, so the page can’t be updated from here. Connect it in Settings → Sharing.")
+                    .font(.lp(size: 11.5))
+                    .foregroundStyle(Color.lpWarning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(spacing: 8) {
                 Button(copied ? "Copied" : "Copy Link") {
+                    guard let link = share.pageURL else { return }
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(share.url.absoluteString, forType: .string)
+                    NSPasteboard.general.setString(link.absoluteString, forType: .string)
                     copied = true
                     Task {
                         try? await Task.sleep(for: .seconds(1.6))
                         copied = false
                     }
                 }
-                Button("Open") { NSWorkspace.shared.open(share.url) }
+                // Always the page on GitHub or Google Docs, built from its ID (see `BoardShare.pageURL`).
+                Button("Open") { if let link = share.pageURL { NSWorkspace.shared.open(link) } }
                 Spacer()
                 if store.isPublishing { ProgressView().controlSize(.small) }
             }
@@ -576,6 +633,50 @@ private struct ShareSection: View {
                     .buttonStyle(.link)
                     .font(.lp(size: 11.5))
                     .foregroundStyle(Color.lpCritical)
+            }
+        }
+    }
+
+    /// A shared page recorded in the folder but not published from this Mac — on another Mac, or
+    /// by whoever the folder came from. Nothing is sent to it, or deleted, until the person allows.
+    @ViewBuilder
+    private func setUpElsewhere(_ share: BoardShare) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("This board’s progress page was set up somewhere else — on another Mac, or by whoever this folder came from. LP won’t update it from here unless you allow it.")
+                .font(.lp(size: 12))
+                .foregroundStyle(Color.lpInkSecondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let link = share.pageURL {
+                Text(link.absoluteString.replacingOccurrences(of: "https://", with: ""))
+                    .font(.lp(size: 12))
+                    .foregroundStyle(Color.lpInk)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+            HStack(spacing: 8) {
+                Button("Keep It Updated From Here") { store.trustShare() }
+                    .disabled(share.pageURL == nil || !SharingServices.isReady(share))
+                Button("Forget It") { store.forgetShare() }
+            }
+            .controlSize(.small)
+            if share.pageURL != nil, !SharingServices.isReady(share) {
+                // Say why the first button can't be used yet, and where to fix it.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(share.service == .googleDrive
+                         ? "To keep it updated from here, connect its Google account (\(SharingServices.accountName(share.account ?? ""))) and allow Google Drive first."
+                         : "To keep it updated from here, connect GitHub first.")
+                        .font(.lp(size: 11.5))
+                        .foregroundStyle(Color.lpInkTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    SettingsLink {
+                        Text("Set Up Sharing…")
+                    }
+                    .buttonStyle(.link)
+                    .font(.lp(size: 11.5))
+                    .simultaneousGesture(TapGesture().onEnded { SettingsView.select(.sharing) })
+                }
             }
         }
     }

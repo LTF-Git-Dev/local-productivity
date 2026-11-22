@@ -24,6 +24,18 @@ protocol CalendarProvider: AnyObject {
     func delete(_ event: SyncEvent, span: EditSpan) async throws
     /// Forgets stored credentials.
     func disconnect()
+    /// Replaced by a newer connection to the same account: stops without touching its credentials.
+    func retire()
+    /// Until when the service asked LP to slow down (nil: it didn't, or that's over).
+    var pausedUntil: Date? { get }
+    /// Where this account's shared board pages go, when the person let LP use its Drive.
+    var driveBackend: DriveBackend? { get }
+}
+
+extension CalendarProvider {
+    func retire() {}
+    var pausedUntil: Date? { nil }
+    var driveBackend: DriveBackend? { nil }
 }
 
 // MARK: - Apple Calendar
@@ -221,18 +233,49 @@ final class GoogleCalendarProvider: CalendarProvider {
 
     var hasCredentials: Bool { tokens.hasTokens }
 
-    /// Signs in through Google's page and returns the connected account.
-    static func connect(clientID: String) async throws -> GoogleCalendarProvider {
-        guard let config = GoogleCalendarMapping.configuration(clientID: clientID) else {
+    /// The app registration this connection signs in with.
+    var clientID: String { tokens.clientID }
+
+    /// Whether the person let LP use Google Drive (for sharing boards) with this account.
+    var canUseDrive: Bool { tokens.grantedScopes.contains(GoogleCalendarMapping.driveFileScope) }
+
+    /// Requests for the files LP shares in this account's Drive, on the account's own tokens (and
+    /// its "slow down" waits).
+    var driveClient: AuthorizedClient? { canUseDrive ? client : nil }
+
+    var driveBackend: DriveBackend? { driveClient.map { GoogleDriveBackend(client: $0, pauseKey: tokens.pauseKey) } }
+
+    /// What becomes of a sign-in once it's known whose it is.
+    enum SignInDecision {
+        case keep
+        /// Nothing of it is kept, and an existing connection to that account stays as it was. Not
+        /// revoked either: with LP's shared registration that could end the account's access on
+        /// another Mac.
+        case refuse(any Error)
+    }
+
+    /// Signs in through Google's page and returns the connected account. `includeDrive` also asks
+    /// for the Drive permission (only files LP creates); `loginHint` suggests the account, but the
+    /// person may choose another — `accept` decides about the one chosen before anything is kept.
+    static func connect(clientID: String, includeDrive: Bool = false, loginHint: String? = nil,
+                        accept: (CalendarAccount) -> SignInDecision = { _ in .keep }) async throws -> GoogleCalendarProvider {
+        guard let config = GoogleCalendarMapping.configuration(clientID: clientID, includeDrive: includeDrive, loginHint: loginHint) else {
             throw CalendarSyncError.missingClientID(.google)
         }
         let fresh = try await OAuthSignIn().signIn(config)
+        let revocations = OAuthRevocations.count(for: config)
         // The primary calendar's identifier is the account's email address.
-        let probe = OAuthTokenStore(config: config, keychainAccount: "pending.google", tokens: fresh)
+        let probe = OAuthTokenStore(config: config, keychainAccount: "pending.google", tokens: fresh,
+                                    pauseIdentity: "pending.google." + ServicePause.fingerprint(fresh.accessToken))
         defer { probe.forget() }
         let data = try await AuthorizedClient(tokens: probe).send(AuthorizedClient.jsonRequest("GET", GoogleCalendarMapping.primaryCalendarURL()))
         let email = try GoogleCalendarMapping.primaryCalendarID(from: data)
         let account = CalendarAccount(id: "google:" + email, kind: .google, name: email)
+        // Nothing revoked while the account was looked up, before the new tokens are kept.
+        try await OAuthRevocations.ensureNone(since: revocations, for: config)
+        // Decided after the last wait — what's connected now counts — and before anything is
+        // written for that account (making the provider saves its tokens).
+        if case .refuse(let error) = accept(account) { throw error }
         return GoogleCalendarProvider(account: account, config: config, tokens: fresh)
     }
 
@@ -290,7 +333,7 @@ final class GoogleCalendarProvider: CalendarProvider {
 
     func delete(_ event: SyncEvent, span: EditSpan) async throws {
         let target = span == .allEvents ? (event.seriesID ?? event.remoteID) : event.remoteID
-        let url = GoogleCalendarMapping.eventURL(calendarID: Self.remoteCalendarID(event), eventID: target)
+        let url = GoogleCalendarMapping.deleteURL(calendarID: Self.remoteCalendarID(event), eventID: target)
         do {
             _ = try await client.send(AuthorizedClient.jsonRequest("DELETE", url))
         } catch CalendarSyncError.notFound {
@@ -299,8 +342,14 @@ final class GoogleCalendarProvider: CalendarProvider {
     }
 
     func disconnect() {
-        tokens.forget()
+        tokens.disconnect()
     }
+
+    func retire() {
+        tokens.retire()
+    }
+
+    var pausedUntil: Date? { ServicePause.until(tokens.pauseKey) }
 
     private static func remoteCalendarID(_ event: SyncEvent) -> String {
         guard let separator = event.calendarID.firstIndex(of: "|") else { return event.calendarID }
@@ -332,11 +381,14 @@ final class MicrosoftCalendarProvider: CalendarProvider {
             throw CalendarSyncError.missingClientID(.microsoft)
         }
         let fresh = try await OAuthSignIn().signIn(config)
-        let probe = OAuthTokenStore(config: config, keychainAccount: "pending.microsoft", tokens: fresh)
+        let revocations = OAuthRevocations.count(for: config)
+        let probe = OAuthTokenStore(config: config, keychainAccount: "pending.microsoft", tokens: fresh,
+                                    pauseIdentity: "pending.microsoft." + ServicePause.fingerprint(fresh.accessToken))
         defer { probe.forget() }
-        let data = try await AuthorizedClient(tokens: probe).send(AuthorizedClient.jsonRequest("GET", MicrosoftGraphMapping.meURL()))
+        let data = try await AuthorizedClient(tokens: probe).send(AuthorizedClient.jsonRequest("GET", MicrosoftGraphMapping.defaultCalendarURL()))
         let name = try MicrosoftGraphMapping.accountName(from: data)
         let account = CalendarAccount(id: "microsoft:" + name.lowercased(), kind: .microsoft, name: name)
+        try await OAuthRevocations.ensureNone(since: revocations, for: config)
         return MicrosoftCalendarProvider(account: account, config: config, tokens: fresh)
     }
 
@@ -402,6 +454,12 @@ final class MicrosoftCalendarProvider: CalendarProvider {
     }
 
     func disconnect() {
-        tokens.forget()
+        tokens.disconnect()
     }
+
+    func retire() {
+        tokens.retire()
+    }
+
+    var pausedUntil: Date? { ServicePause.until(tokens.pauseKey) }
 }

@@ -13,9 +13,14 @@ nonisolated enum GoogleCalendarMapping {
 
     static let apiBase = URL(string: "https://www.googleapis.com/calendar/v3")!
 
+    /// The only Google Drive permission LP ever asks for, and only for sharing boards: the files LP
+    /// itself creates — nothing else in the Drive.
+    static let driveFileScope = "https://www.googleapis.com/auth/drive.file"
+
     /// Sign-in settings for a Google "iOS" OAuth client, which works for Mac apps and needs no
-    /// secret. Its redirect uses the client ID reversed into a URL scheme.
-    static func configuration(clientID raw: String) -> OAuthConfiguration? {
+    /// secret. Its redirect uses the client ID reversed into a URL scheme. `includeDrive` adds the
+    /// Drive permission (for sharing boards); `loginHint` picks the account on Google's page.
+    static func configuration(clientID raw: String, includeDrive: Bool = false, loginHint: String? = nil) -> OAuthConfiguration? {
         let clientID = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let suffix = ".apps.googleusercontent.com"
         guard clientID.hasSuffix(suffix), clientID.count > suffix.count, !clientID.contains(" ") else { return nil }
@@ -26,11 +31,20 @@ nonisolated enum GoogleCalendarMapping {
             clientID: clientID,
             redirectURI: scheme + ":/oauth2redirect",
             callbackScheme: scheme,
-            scopes: ["https://www.googleapis.com/auth/calendar"],
-            // Ask for a refresh token so the account stays connected.
-            extraAuthorizeParameters: ["access_type": "offline", "prompt": "consent"]
+            // Only what LP needs: the list of calendars (read only) and their events — not the
+            // permission to change calendars themselves or who they are shared with.
+            scopes: ["https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                     "https://www.googleapis.com/auth/calendar.events"] + (includeDrive ? [driveFileScope] : []),
+            // Ask for a refresh token so the account stays connected; keep what was granted before
+            // (connecting again doesn't drop Drive), and pick the right account when asked to.
+            extraAuthorizeParameters: ["access_type": "offline", "prompt": "consent", "include_granted_scopes": "true"]
+                .merging(loginHint.map { ["login_hint": $0] } ?? [:]) { first, _ in first },
+            revocationURL: revocationURL
         )
     }
+
+    /// Where Google ends an app's access (it needs only the token, not the client ID).
+    static let revocationURL = URL(string: "https://oauth2.googleapis.com/revoke")!
 
     // MARK: URLs
 
@@ -46,15 +60,21 @@ nonisolated enum GoogleCalendarMapping {
         return components.url!
     }
 
+    /// The fields LP reads, so Google sends nothing more (no attendees, organisers or the like).
+    static let calendarFields = "items(id,summary,summaryOverride,backgroundColor,accessRole,deleted),nextPageToken"
+    static let eventFields = "id,status,summary,description,location,start,end,recurringEventId,htmlLink,etag"
+    static let eventListFields = "items(\(eventFields)),nextPageToken"
+
     static func calendarListURL(pageToken: String? = nil) -> URL {
-        var query = [URLQueryItem(name: "maxResults", value: "250")]
+        var query = [URLQueryItem(name: "maxResults", value: "250"), URLQueryItem(name: "fields", value: calendarFields)]
         if let pageToken { query.append(URLQueryItem(name: "pageToken", value: pageToken)) }
         return url("/users/me/calendarList", query)
     }
 
-    /// The primary calendar, whose identifier is the account's email address.
+    /// The primary calendar's entry in the calendar list, whose identifier is the account's email
+    /// address (readable with the calendar-list permission alone).
     static func primaryCalendarURL() -> URL {
-        url("/calendars/primary")
+        url("/users/me/calendarList/primary", [URLQueryItem(name: "fields", value: "id")])
     }
 
     static func eventsURL(calendarID: String, interval: DateInterval, pageToken: String? = nil) -> URL {
@@ -63,18 +83,25 @@ nonisolated enum GoogleCalendarMapping {
             URLQueryItem(name: "timeMax", value: CalendarDates.rfc3339(interval.end)),
             // Expand repeating events into their occurrences.
             URLQueryItem(name: "singleEvents", value: "true"),
-            URLQueryItem(name: "maxResults", value: "2500")
+            URLQueryItem(name: "maxResults", value: "2500"),
+            URLQueryItem(name: "fields", value: eventListFields)
         ]
         if let pageToken { query.append(URLQueryItem(name: "pageToken", value: pageToken)) }
         return url("/calendars/\(pathComponent(calendarID))/events", query)
     }
 
+    /// One event, for reading or changing it: Google sends back only the fields LP reads.
     static func eventURL(calendarID: String, eventID: String) -> URL {
+        url("/calendars/\(pathComponent(calendarID))/events/\(pathComponent(eventID))", [URLQueryItem(name: "fields", value: eventFields)])
+    }
+
+    /// One event, for deleting it (nothing comes back).
+    static func deleteURL(calendarID: String, eventID: String) -> URL {
         url("/calendars/\(pathComponent(calendarID))/events/\(pathComponent(eventID))")
     }
 
     static func insertURL(calendarID: String) -> URL {
-        url("/calendars/\(pathComponent(calendarID))/events")
+        url("/calendars/\(pathComponent(calendarID))/events", [URLQueryItem(name: "fields", value: eventFields)])
     }
 
     // MARK: Reading

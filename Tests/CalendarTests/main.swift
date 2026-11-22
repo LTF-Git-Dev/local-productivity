@@ -119,6 +119,12 @@ do {
     let url = GoogleCalendarMapping.eventsURL(calendarID: page.items[1].remoteID, interval: DateInterval(start: Date(), duration: 86_400))
     check(url.absoluteString.contains("en.usa%23holiday@group.v.calendar.google.com/events"), "calendar IDs are escaped in paths: \(url.absoluteString)")
     check(url.absoluteString.contains("singleEvents=true"), "repeating events are expanded")
+    check(url.absoluteString.contains("fields=items"), "only the fields LP shows are asked for")
+    check(GoogleCalendarMapping.calendarListURL().absoluteString.contains("fields=items"), "and for the calendar list")
+    check(GoogleCalendarMapping.primaryCalendarURL().path == "/calendar/v3/users/me/calendarList/primary", "the account's address comes from the calendar list")
+    check(GoogleCalendarMapping.eventURL(calendarID: "c", eventID: "e").absoluteString.contains("fields=id"), "reading or changing one event asks only for LP's fields")
+    check(GoogleCalendarMapping.insertURL(calendarID: "c").absoluteString.contains("fields=id"), "and so does creating one")
+    check(!GoogleCalendarMapping.deleteURL(calendarID: "c", eventID: "e").absoluteString.contains("fields"), "deleting sends no field mask (nothing comes back)")
 } catch {
     check(false, "Google calendars threw \(error)")
 }
@@ -171,7 +177,7 @@ let outlookCalendar = SyncCalendar(accountID: "microsoft:me@outlook.com", remote
                                    colorHex: "#2F7CD6", isWritable: true, sourceTitle: "me@outlook.com")
 
 do {
-    check(try MicrosoftGraphMapping.accountName(from: json(#"{"mail":null,"userPrincipalName":"me@outlook.com"}"#)) == "me@outlook.com",
+    check(try MicrosoftGraphMapping.accountName(from: json(#"{"owner":{"name":"Me","address":"me@outlook.com"}}"#)) == "me@outlook.com",
           "account name falls back to the user principal name")
     let page = try MicrosoftGraphMapping.calendars(from: json("""
     {"value":[
@@ -240,6 +246,201 @@ do {
     let draft = EventDraft(title: "x", start: local(2026, 11, 17, 9), end: local(2026, 11, 17, 10), isAllDay: false)
     let moved = draft.moved(to: local(2026, 11, 19, 14))
     check(moved.start == local(2026, 11, 19, 14) && moved.end == local(2026, 11, 19, 15), "moving keeps the duration")
+}
+
+// MARK: - Only what is needed
+
+do {
+    let google = GoogleCalendarMapping.configuration(clientID: "123-abc.apps.googleusercontent.com")
+    check(google?.scopes == ["https://www.googleapis.com/auth/calendar.calendarlist.readonly", "https://www.googleapis.com/auth/calendar.events"],
+          "Google: the calendar list (read only) and events — not the full calendar permission: \(google?.scopes ?? [])")
+    let microsoft = MicrosoftGraphMapping.configuration(clientID: "00000000-0000-0000-0000-000000000001", bundleID: "LTF.Local-Productivity")
+    check(microsoft?.scopes == ["offline_access", "https://graph.microsoft.com/Calendars.ReadWrite"], "Microsoft: calendars only, no profile")
+    check(MicrosoftGraphMapping.defaultCalendarURL().absoluteString.contains("/me/calendar?"), "the account's address comes from its calendar")
+    if let google, let request = OAuthRequests.revocation(google, token: "refresh-1") {
+        check(request.url?.absoluteString == "https://oauth2.googleapis.com/revoke" && request.httpMethod == "POST", "disconnecting Google ends LP's access there")
+        check(String(data: request.httpBody ?? Data(), encoding: .utf8) == "token=refresh-1", "with the token in the body, not the address")
+    } else {
+        check(false, "Google has a revocation request")
+    }
+    check(microsoft.flatMap { OAuthRequests.revocation($0, token: "t") } == nil, "Microsoft can't be asked, so nothing is sent")
+    let stored = OAuthRequests.revocation(at: GoogleCalendarMapping.revocationURL, token: "old-refresh")
+    check(stored.url == GoogleCalendarMapping.revocationURL && String(data: stored.httpBody ?? Data(), encoding: .utf8) == "token=old-refresh",
+          "an account whose client ID was cleared can still have its access ended (no client ID needed)")
+}
+
+// MARK: - Full sync
+
+do {
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = TimeZone(identifier: "UTC")!
+    let now = ISO8601DateFormatter().date(from: "2026-11-19T10:00:00Z")!
+    let range = CalendarSyncRange.full(around: now, calendar: utc)
+    check(ISO8601DateFormatter().string(from: range.start) == "2025-11-01T00:00:00Z", "a full sync starts a year back: \(range.start)")
+    check(ISO8601DateFormatter().string(from: range.end) == "2028-12-01T00:00:00Z", "and ends two years ahead: \(range.end)")
+    check(CalendarSyncRange.needsFullSync(lastFullSync: nil, now: now), "an account never synced (or asked to be) gets a full sync")
+    check(!CalendarSyncRange.needsFullSync(lastFullSync: now.addingTimeInterval(-10 * 60), now: now), "not again ten minutes later")
+    check(CalendarSyncRange.needsFullSync(lastFullSync: now.addingTimeInterval(-31 * 60), now: now), "but after half an hour")
+
+    func event(_ id: String, _ day: String, account: String = "google:me", calendar: String = "google:me|cal") -> SyncEvent {
+        let start = ISO8601DateFormatter().date(from: day + "T09:00:00Z")!
+        return SyncEvent(accountID: account, calendarID: calendar, remoteID: id, seriesID: nil, title: id, start: start,
+                         end: start.addingTimeInterval(3600), isAllDay: false)
+    }
+    let window = DateInterval(start: ISO8601DateFormatter().date(from: "2026-11-01T00:00:00Z")!,
+                              end: ISO8601DateFormatter().date(from: "2026-12-01T00:00:00Z")!)
+    let existing = [event("old-far", "2024-03-10"), event("in-window-deleted", "2026-11-20"), event("kept-later", "2027-06-01"),
+                    event("hidden", "2027-06-02", calendar: "google:me|hidden"), event("other", "2026-11-20", account: "microsoft:me", calendar: "microsoft:me|c")]
+    let merged = SyncEvent.merging([event("new", "2026-11-25"), event("kept-later", "2027-06-01")], over: [window],
+                                   calendars: ["google:me|cal"], into: existing, account: "google:me")
+    let ids = Set(merged.map(\.remoteID))
+    check(ids.contains("old-far") && ids.contains("kept-later"), "events outside what was fetched are kept until disconnect: \(ids.sorted())")
+    check(!ids.contains("in-window-deleted"), "inside what was fetched, the source decides (deleted there, gone here)")
+    check(ids.contains("new"), "and new events arrive")
+    check(merged.filter { $0.remoteID == "kept-later" }.count == 1, "an event fetched again isn't doubled")
+    check(!ids.contains("hidden"), "a hidden or removed calendar's events go")
+    check(ids.contains("other"), "other accounts are untouched")
+}
+
+// MARK: - Slow down (rate limits)
+
+do {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)  // Fri, 15 Jan 2027 08:00:00 GMT
+    func headers(_ values: [String: String]) -> (String) -> String? {
+        let lowered = Dictionary(uniqueKeysWithValues: values.map { ($0.key.lowercased(), $0.value) })
+        return { lowered[$0.lowercased()] }
+    }
+    func limit(_ status: Int, _ values: [String: String] = [:], body: String = "") -> TimeInterval? {
+        RateLimit.retryDate(status: status, header: headers(values), body: Data(body.utf8), now: now)?.timeIntervalSince(now)
+    }
+    check(limit(200) == nil && limit(200, ["Retry-After": "30"]) == nil, "a success is never a limit")
+    check(limit(429, ["Retry-After": "120"]) == 120, "429 waits as long as Retry-After says")
+    check(limit(429, ["retry-after": "Fri, 15 Jan 2027 08:05:00 GMT"]) == 300, "Retry-After can be a date")
+    check(limit(429) == RateLimit.defaultWait, "429 without a time waits a minute")
+    check(limit(429, ["Retry-After": "soon"]) == RateLimit.defaultWait, "an unreadable time waits a minute")
+    check(limit(429, ["Retry-After": "0"]) == 1 && limit(429, ["Retry-After": "-50"]) == 1, "never less than a second")
+    check(limit(429, ["Retry-After": "999999"]) == RateLimit.longestWait, "never more than an hour")
+    // GitHub: short-term limits come as 403 + Retry-After; a used-up hour as remaining 0 + reset.
+    check(limit(403, ["Retry-After": "60"]) == 60, "GitHub's 403 with Retry-After is a limit")
+    check(limit(403, ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1800000900"]) == 900, "GitHub's used-up allowance waits for its reset")
+    check(limit(403, ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1800999999"]) == RateLimit.longestWait, "a far reset still waits at most an hour")
+    check(limit(403, ["X-RateLimit-Remaining": "12"]) == nil, "a 403 with allowance left is a real \u{201C}not allowed\u{201D}")
+    // Google names the limit in the error.
+    check(limit(403, body: #"{"error":{"code":403,"errors":[{"domain":"usageLimits","reason":"rateLimitExceeded"}]}}"#) == RateLimit.defaultWait,
+          "Google's rateLimitExceeded is a limit")
+    check(limit(403, body: #"{"error":{"code":403,"errors":[{"reason":"userRateLimitExceeded"}]}}"#) == RateLimit.defaultWait, "so is userRateLimitExceeded")
+    check(limit(403, body: #"{"error":{"code":403,"status":"RESOURCE_EXHAUSTED"}}"#) == RateLimit.defaultWait, "and RESOURCE_EXHAUSTED")
+    check(limit(403, body: #"{"error":{"code":403,"errors":[{"reason":"forbidden"}]}}"#) == nil, "Google's forbidden stays a permissions problem")
+    // Microsoft sometimes slows apps down with a 503 and Retry-After.
+    check(limit(503, ["Retry-After": "30"]) == 30, "503 with Retry-After is a limit")
+    check(limit(503) == nil && limit(500, ["Retry-After": "30"]) == nil, "an outage isn't")
+    // GitHub's secondary limits can come as a 403 that says so only in its message.
+    check(limit(403, body: #"{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}"#) == RateLimit.defaultWait,
+          "GitHub's secondary-limit message is a limit")
+    check(limit(403, body: #"{"message":"API rate limit exceeded for user ID 1."}"#) == RateLimit.defaultWait, "so is its hourly one")
+    check(limit(403, body: #"{"message":"Resource not accessible by personal access token"}"#) == nil, "GitHub's real \u{201C}not allowed\u{201D} stays one")
+    let message = CalendarSyncError.rateLimited(now).errorDescription ?? ""
+    check(message.contains("slow down") && message.contains("wait until"), "the message says what happened and until when")
+}
+
+// MARK: - Which app registration signs in
+
+do {
+    let lp = "111-lp.apps.googleusercontent.com", mine = "222-mine.apps.googleusercontent.com"
+    check(AppRegistration.clientID(own: "", builtIn: lp) == lp, "with no client ID of your own, LP's own registration is used")
+    check(AppRegistration.clientID(own: "  \(mine) \n", builtIn: lp) == mine, "your own client ID wins over LP's (trimmed)")
+    check(AppRegistration.clientID(own: "", builtIn: nil) == nil && AppRegistration.clientID(own: " ", builtIn: "  ") == nil,
+          "with neither, there is nothing to sign in with")
+
+    let signedIn = try? OAuthRequests.tokens(from: json(#"{"access_token":"a1","expires_in":3600,"refresh_token":"r1"}"#),
+                                             previousRefreshToken: nil, clientID: mine)
+    check(signedIn?.clientID == mine, "tokens remember the registration that issued them")
+    let encoded = signedIn.flatMap { try? JSONEncoder().encode($0) }
+    check(encoded.flatMap { try? JSONDecoder().decode(OAuthTokens.self, from: $0) }?.clientID == mine, "and keep it when saved")
+    let refreshed = try? OAuthRequests.tokens(from: json(#"{"access_token":"a2","expires_in":3600}"#), previousRefreshToken: "r1",
+                                              previousScopes: signedIn?.scopes, clientID: signedIn?.clientID)
+    check(refreshed?.clientID == mine && refreshed?.refreshToken == "r1", "a refresh keeps the registration")
+    let old = json(#"{"accessToken":"a0","refreshToken":"r0","expiresAt":0}"#)
+    check((try? JSONDecoder().decode(OAuthTokens.self, from: old))?.clientID == nil, "tokens saved by LP 1.0.0 still load (no registration noted)")
+    let legacy = try? JSONDecoder().decode(OAuthTokens.self, from: old)
+    check(legacy?.pinned(to: mine).clientID == mine && legacy?.pinned(to: mine).refreshToken == "r0",
+          "LP 1.0.0's tokens are pinned to the registration they're first loaded with")
+    check(signedIn?.pinned(to: lp).clientID == mine, "a registration already noted never changes")
+    typealias Replace = ConnectionReplacement
+    check(Replace.allowingDrive(chosen: "google:a", expected: "google:a", liveClientID: mine, requested: mine, driveWorkRunning: false) == .replace,
+          "allowing Drive adds it to the account's own connection")
+    check(Replace.allowingDrive(chosen: "google:a", expected: "google:a", liveClientID: nil, requested: lp, driveWorkRunning: false) == .replace,
+          "or connects an account that isn't attached right now")
+    check(Replace.allowingDrive(chosen: "google:b", expected: "google:a", liveClientID: nil, requested: mine, driveWorkRunning: false) == .otherAccount,
+          "another account chosen on Google's page is refused")
+    check(Replace.allowingDrive(chosen: "google:a", expected: "google:a", liveClientID: lp, requested: mine, driveWorkRunning: false) == .superseded,
+          "allowing Drive never moves an account to another registration (connected again meanwhile)")
+    check(Replace.connecting(liveClientID: mine, requested: lp, hasDriveWork: true, driveWorkRunning: false) == .registrationInUse,
+          "Connect won't move an account whose Drive pages — or one being made — need its registration")
+    check(Replace.connecting(liveClientID: mine, requested: lp, hasDriveWork: false, driveWorkRunning: false) == .replace
+          && Replace.connecting(liveClientID: lp, requested: lp, hasDriveWork: true, driveWorkRunning: false) == .replace
+          && Replace.connecting(liveClientID: nil, requested: lp, hasDriveWork: true, driveWorkRunning: true) == .replace,
+          "but moves it when nothing depends on the old one, or reconnects through the same")
+    check(Replace.connecting(liveClientID: lp, requested: lp, hasDriveWork: true, driveWorkRunning: true) == .busy
+          && Replace.allowingDrive(chosen: "google:a", expected: "google:a", liveClientID: mine, requested: mine, driveWorkRunning: true) == .busy,
+          "no live connection is replaced while a Drive page is being made or updated through it")
+    check(CalendarSyncError.registrationInUse("a@example.com").errorDescription?.contains("Stop sharing them") == true,
+          "connecting an account through another registration says why it can't while its Drive pages need the old one")
+    check(GoogleCalendarMapping.configuration(clientID: AppRegistration.clientID(own: "", builtIn: lp) ?? "")?.clientID == lp,
+          "LP's registration signs in like any other")
+}
+
+// MARK: - Permissions granted, and the optional Drive permission
+
+do {
+    let granted = try? OAuthRequests.tokens(from: json(#"{"access_token":"a1","expires_in":3600,"refresh_token":"r1","scope":"https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file"}"#),
+                                            previousRefreshToken: nil)
+    check(granted?.scopes == ["https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/drive.file"],
+          "the permissions the person granted are kept")
+    let refreshed = try? OAuthRequests.tokens(from: json(#"{"access_token":"a2","expires_in":3600}"#), previousRefreshToken: "r1",
+                                              previousScopes: granted?.scopes)
+    check(refreshed?.scopes == granted?.scopes && refreshed?.refreshToken == "r1", "a refresh that doesn't list them keeps them")
+    let saved = json(#"{"accessToken":"a0","refreshToken":"r0","expiresAt":0}"#)
+    check((try? JSONDecoder().decode(OAuthTokens.self, from: saved))?.scopes == nil, "tokens saved before LP kept track still load")
+
+    let plain = GoogleCalendarMapping.configuration(clientID: "123-abc.apps.googleusercontent.com")
+    let drive = GoogleCalendarMapping.configuration(clientID: "123-abc.apps.googleusercontent.com", includeDrive: true, loginHint: "a@example.com")
+    check(!(plain?.scopes.contains(GoogleCalendarMapping.driveFileScope) ?? true), "the calendar alone never asks for Drive")
+    check(drive?.scopes == (plain?.scopes ?? []) + ["https://www.googleapis.com/auth/drive.file"], "sharing adds only drive.file (files LP creates)")
+    check(plain?.extraAuthorizeParameters["include_granted_scopes"] == "true", "connecting again keeps what was granted before")
+    check(drive?.extraAuthorizeParameters["login_hint"] == "a@example.com" && plain?.extraAuthorizeParameters["login_hint"] == nil,
+          "allowing Drive picks the account it is for")
+
+    let disabled = json(#"{"error":{"code":403,"status":"PERMISSION_DENIED","message":"Google Drive API has not been used in project 1 before or it is disabled.","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SERVICE_DISABLED","metadata":{"serviceTitle":"Google Drive API","service":"drive.googleapis.com"}}]}}"#)
+    check(GoogleAPIProblem.disabledService(in: disabled) == "Google Drive API", "an API that isn't turned on is named")
+    check(GoogleAPIProblem.disabledService(in: json(#"{"error":{"code":403,"errors":[{"reason":"accessNotConfigured"}]}}"#)) == "The Google API LP needs",
+          "also in Google's older wording")
+    check(GoogleAPIProblem.disabledService(in: json(#"{"error":{"code":403,"errors":[{"reason":"insufficientPermissions"}]}}"#)) == nil,
+          "a missing permission is something else")
+    check((CalendarSyncError.serviceDisabled("Google Drive API").errorDescription ?? "").contains("turned on"), "and the message says what to do")
+}
+
+// MARK: - Waits, per who was asked
+
+MainActor.assumeIsolated {
+    let now = Date(timeIntervalSince1970: 1_900_000_000)
+    check(ServicePause.until("calendar.a", now: now) == nil, "nothing to wait for at first")
+    let long = ServicePause.record("calendar.a", until: now.addingTimeInterval(900), now: now)
+    check(long == now.addingTimeInterval(900) && ServicePause.until("calendar.a", now: now) == long, "a wait is kept")
+    // Two requests were on their way; the later answer asks for less.
+    let after = ServicePause.record("calendar.a", until: now.addingTimeInterval(30), now: now.addingTimeInterval(5))
+    check(after == now.addingTimeInterval(900), "a later, shorter answer doesn't shorten the wait")
+    check(ServicePause.record("calendar.a", until: now.addingTimeInterval(1200), now: now) == now.addingTimeInterval(1200), "a longer one lengthens it")
+    check(ServicePause.until("calendar.b", now: now) == nil && ServicePause.until("github.x", now: now) == nil,
+          "another account or token isn't held up")
+    check(ServicePause.until("calendar.a", now: now.addingTimeInterval(1201)) == nil, "and the wait ends")
+    // Once over, a new answer starts a new wait, even a shorter one.
+    check(ServicePause.record("calendar.a", until: now.addingTimeInterval(1260), now: now.addingTimeInterval(1201)) == now.addingTimeInterval(1260),
+          "after it ends, a new wait is a new wait")
+    // Waits per credential (a GitHub token, a sign-in still finding its account) go by a fingerprint.
+    let one = ServicePause.fingerprint("token-one"), two = ServicePause.fingerprint("token-two")
+    check(one.count == 16 && one != two && one == ServicePause.fingerprint("token-one"), "credentials get stable, different names")
+    check(!one.contains("token"), "that don't contain the credential")
 }
 
 print("\(passed) passed, \(failed) failed")

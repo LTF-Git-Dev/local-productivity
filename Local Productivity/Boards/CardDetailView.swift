@@ -27,8 +27,16 @@ struct CardDetailView: View {
     @State private var tags: String
     @State private var notes: String
 
-    private let original: BoardCard?
-    private let originalLaneID: String
+    // What the sheet was opened on. These are State, not plain properties: the board view builds
+    // the sheet again whenever the board changes, and a plain property would take the card (and
+    // board) as they are then — so "only what you changed" would compare against the wrong card.
+    @State private var original: BoardCard?
+    @State private var originalLaneID: String
+    /// Whether the card was done when the sheet opened — itself, or by being in a list whose cards
+    /// count as done (which another app can change meanwhile).
+    @State private var originalIsDone: Bool
+    /// The board the sheet was opened on: its file can be replaced by another board meanwhile.
+    @State private var identity: String
 
     init(store: BoardStore, cardID: String, undoManager: UndoManager?) {
         self.store = store
@@ -36,11 +44,14 @@ struct CardDetailView: View {
         self.undoManager = undoManager
         let card = store.board.allCards.first { $0.id == cardID }
         let lane = store.board.lane(containing: cardID)
-        original = card
-        originalLaneID = lane?.id ?? ""
+        _original = State(initialValue: card)
+        _originalLaneID = State(initialValue: lane?.id ?? "")
+        _identity = State(initialValue: store.log.boardID)
         _title = State(initialValue: card?.title ?? "")
         _laneID = State(initialValue: lane?.id ?? "")
-        _isDone = State(initialValue: card.map { $0.isDone || lane?.marksComplete == true } ?? false)
+        let wasDone = card.map { $0.isDone || lane?.marksComplete == true } ?? false
+        _isDone = State(initialValue: wasDone)
+        _originalIsDone = State(initialValue: wasDone)
         _hasDue = State(initialValue: card?.due != nil)
         _due = State(initialValue: card?.due?.date() ?? Day.today.adding(days: 1).date())
         let dueTime = card.flatMap { CardText.dueTime(in: $0.text) }
@@ -61,9 +72,36 @@ struct CardDetailView: View {
             Divider()
             form
             Divider()
+            // Why Done didn't close the sheet; what was typed is still here.
+            if let problem = store.saveError {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .font(.lp(size: 12))
+                    .foregroundStyle(Color.lpWarning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+            }
             footer
         }
         .frame(width: 520)
+        #if DEBUG
+        // The harness's `card-sheet:` step: type into the notes and press Done, press Done, or pick Delete.
+        .onReceive(NotificationCenter.default.publisher(for: .lpHarnessCardSheet)) { note in
+            guard let request = note.object as? [String: String] else { return }
+            switch request["action"] {
+            case "delete":
+                guard store.isStill(identity), store.delete(cardID, undoManager: undoManager) else { return }
+                dismiss()
+            case "done":
+                save()
+            case "notes":
+                notes = request["text"] ?? ""
+                save()
+            default:
+                break
+            }
+        }
+        #endif
     }
 
     // MARK: Sections
@@ -156,12 +194,13 @@ struct CardDetailView: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Menu {
+                // If it can't be done the sheet stays open with what was typed, and says why.
                 Button("Archive", systemImage: "archivebox") {
-                    store.archive(cardID, undoManager: undoManager)
+                    guard store.isStill(identity), store.archive(cardID, undoManager: undoManager) else { return }
                     dismiss()
                 }
                 Button("Delete", systemImage: "trash", role: .destructive) {
-                    store.delete(cardID, undoManager: undoManager)
+                    guard store.isStill(identity), store.delete(cardID, undoManager: undoManager) else { return }
                     dismiss()
                 }
             } label: {
@@ -178,7 +217,10 @@ struct CardDetailView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Cancel", role: .cancel) { dismiss() }
+            Button("Cancel", role: .cancel) {
+                store.saveError = nil
+                dismiss()
+            }
                 .keyboardShortcut(.cancelAction)
             Button("Done", action: save)
                 .keyboardShortcut(.defaultAction)
@@ -204,28 +246,29 @@ struct CardDetailView: View {
             dismiss()
             return
         }
-        // Only the parts that were changed are rewritten, so links and other syntax survive.
-        var text = original.text
+        // Only what was changed here is sent, and the store applies it to the card as it is when
+        // the change is made, so changes made elsewhere while the sheet was open survive.
+        var edit = CardEdit()
         let newTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if newTitle != original.title, !newTitle.isEmpty {
-            text = CardText.settingTitle(newTitle, in: text)
-        }
-        if parsedTags != original.tags {
-            text = CardText.settingTags(parsedTags, in: text)
-        }
+        if newTitle != original.title, !newTitle.isEmpty { edit.title = newTitle }
+        if parsedTags != original.tags { edit.tags = parsedTags }
         let newDue = hasDue ? Day(due) : nil
         if newDue != original.due {
-            text = CardText.settingDue(newDue, in: text)
+            edit.changesDue = true
+            edit.due = newDue
         }
         let newTime = hasDue && hasTime ? TimeOfDay(time) : nil
-        if newTime != CardText.dueTime(in: text) {
-            text = CardText.settingDueTime(newTime, in: text)
+        if newTime != CardText.dueTime(in: original.text) {
+            edit.changesTime = true
+            edit.time = newTime
         }
-        let body = notes.trimmingCharacters(in: .newlines)
-        let wasDone = original.isDone || store.lane(withID: originalLaneID)?.marksComplete == true
-        if text != original.text || body != original.body || isDone != wasDone || laneID != originalLaneID {
-            store.editCard(cardID, text: text, body: body, isDone: isDone, laneID: laneID, undoManager: undoManager)
+        let editedNotes = notes.trimmingCharacters(in: .newlines)
+        if editedNotes != original.body.trimmingCharacters(in: .newlines) { edit.body = editedNotes }
+        if isDone != originalIsDone { edit.isDone = isDone }
+        if laneID != originalLaneID { edit.laneID = laneID }
+        // If it couldn't be saved the sheet stays open, keeping what was typed; the reason shows.
+        if edit.isEmpty || (store.isStill(identity) && store.editCard(cardID, edit, undoManager: undoManager)) {
+            dismiss()
         }
-        dismiss()
     }
 }

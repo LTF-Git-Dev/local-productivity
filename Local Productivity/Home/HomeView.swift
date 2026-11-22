@@ -319,7 +319,7 @@ struct TaskRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Button {
-                workspace.toggleTask(task)
+                app.toggleTask(task, in: workspace)
             } label: {
                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.lp(size: 16))

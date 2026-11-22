@@ -65,7 +65,8 @@ let tasks = [
     ReminderTask(path: "Notes.md", text: "Call Mina", source: "Notes", due: Day(year: 2026, month: 11, day: 20), time: TimeOfDay(hour: 14, minute: 0)),
     ReminderTask(path: "Notes.md", text: "Far away", source: "Notes", due: Day(year: 2026, month: 11, day: 30)),
     ReminderTask(path: "Notes.md", text: "Late already", source: "Notes", due: Day(year: 2026, month: 11, day: 10)),
-    ReminderTask(path: "Board.md", text: "Ship it", source: "Launch Board", due: Day(year: 2026, month: 11, day: 19), isCard: true, cardID: "c1"),
+    ReminderTask(path: "Board.md", text: "Ship it", source: "Launch Board", due: Day(year: 2026, month: 11, day: 19), isCard: true, cardID: "c1",
+                 boardID: "blaunch1"),
 ]
 let events = [
     ReminderEvent(id: "e1", title: "Standup", start: at("2026-11-18T10:00:00Z"), end: at("2026-11-18T10:15:00Z"), isAllDay: false, location: "Room 2"),
@@ -85,6 +86,17 @@ check(planned("Call Mina")?.subtitle == "Due at 14:00", "and says when: \(planne
 check(planned("Far away") == nil, "nothing beyond a week")
 check(planned("Late already") == nil, "overdue tasks are not reminded one by one")
 check(planned("Ship it")?.info[ReminderInfo.cardID] == "c1" && planned("Ship it")?.body == "Launch Board", "a card remembers its board and ID")
+check(planned("Ship it")?.info[ReminderInfo.board] == "blaunch1", "and the board's own ID, so another board in its file isn't changed")
+check(planned("Send the invoice")?.info[ReminderInfo.board] == nil, "a page task names no board")
+do {
+    // A card's reminder changes when its board gets an ID, so the one waiting is replaced by one
+    // that carries it.
+    var card = ReminderTask(path: "Board.md", text: "Ship it", source: "Launch Board", due: Day(year: 2026, month: 11, day: 19), isCard: true, cardID: "c1")
+    let before = ReminderPlanner.plan(tasks: [card], events: [], settings: settings, now: now, calendar: calendar).first { $0.title == "Ship it" }?.id
+    card.boardID = "blaunch1"
+    let after = ReminderPlanner.plan(tasks: [card], events: [], settings: settings, now: now, calendar: calendar).first { $0.title == "Ship it" }?.id
+    check(before != nil && after != nil && before != after, "a card's reminder is new once its board has an ID")
+}
 check(planned("Standup")?.date == at("2026-11-18T09:50:00Z"), "an event is alerted ten minutes before")
 check(planned("Standup")?.subtitle == "10:00 – 10:15" && planned("Standup")?.body == "Room 2", "with its times and place")
 check(planned("Offsite") == nil, "all-day events have no alert")
@@ -102,6 +114,19 @@ let quietDay = Day(year: 2026, month: 11, day: 22)
 let quiet = ReminderPlanner.plan(tasks: [], events: [], settings: settings, now: now, calendar: calendar)
 check(quiet.isEmpty, "nothing to say means no summary at all")
 check(!plan.contains { $0.kind == .summary && $0.info[ReminderInfo.day] == quietDay.iso && $0.subtitle.isEmpty }, "no empty summaries")
+
+// MARK: - Workspaces
+
+do {
+    let first = ReminderPlanner.plan(tasks: tasks, events: events, settings: settings, now: now, workspace: "W1", calendar: calendar)
+    let again = ReminderPlanner.plan(tasks: tasks, events: events, settings: settings, now: now, workspace: "W1", calendar: calendar)
+    let other = ReminderPlanner.plan(tasks: tasks, events: events, settings: settings, now: now, workspace: "W2", calendar: calendar)
+    check(first.allSatisfy { $0.info[ReminderInfo.workspace] == "W1" }, "every reminder carries its workspace")
+    check(first.map(\.id) == again.map(\.id), "its identifiers stay the same between launches")
+    check(Set(first.map(\.id)).isDisjoint(with: Set(other.map(\.id))), "the same task in another workspace is another reminder")
+    check(Set(first.map(\.id)).isDisjoint(with: Set(plan.map(\.id))), "reminders planned before workspaces were stamped are replaced")
+    check(first.allSatisfy { $0.id.hasPrefix("lp.\($0.kind.rawValue).") }, "and keep the form that finds stale ones")
+}
 
 do {
     var withApple = settings

@@ -11,11 +11,21 @@ import Foundation
 
 nonisolated enum BoardParser {
 
-    /// True for a Markdown file whose front matter marks it as a board.
+    /// How far into a file LP looks to tell whether it is a board, in bytes.
+    static let boardMarkerWindow = 1024
+
+    /// True for a Markdown file whose front matter marks it as a board: it starts with `---` and
+    /// names the Kanban plugin within its first `boardMarkerWindow` bytes. One rule, on bytes, for
+    /// every check — opening, the index, moving, copying — so they always agree (counting
+    /// characters didn't: an emoji family is one character but 25 bytes).
     static func isBoard(_ text: String) -> Bool {
-        guard text.hasPrefix("---") else { return false }
-        let head = text.prefix(600)
-        return head.contains("kanban-plugin:")
+        isBoard(head: Data(text.utf8.prefix(boardMarkerWindow)))
+    }
+
+    /// The same, from the start of the file's bytes (at least `boardMarkerWindow` of them, or all).
+    static func isBoard(head: Data) -> Bool {
+        let window = head.prefix(boardMarkerWindow)
+        return window.starts(with: Data("---".utf8)) && window.range(of: Data("kanban-plugin:".utf8)) != nil
     }
 
     // MARK: Reading
@@ -221,17 +231,57 @@ nonisolated enum BoardParser {
         return line
     }
 
-    /// Front matter with `key: value` set, written the way the Kanban plugin lays it out.
+    /// `text` with `key: value` set in its front matter and everything else exactly as it was
+    /// (line endings included), or nil when it has no front matter.
+    static func settingFrontMatter(_ key: String, to value: String, in text: String) -> String? {
+        // Split on the scalar: in a String, "\r\n" is one character, not a "\n".
+        var lines = text.unicodeScalars.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String(String.UnicodeScalarView($0)) }
+        func isFence(_ line: String) -> Bool { line.trimmingCharacters(in: .whitespacesAndNewlines) == "---" }
+        guard let first = lines.first, isFence(first),
+              let close = lines.indices.dropFirst().first(where: { isFence(lines[$0]) }) else { return nil }
+        let crlf = first.hasSuffix("\r")
+        let yaml = lines[1..<close].map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }.joined(separator: "\n")
+        let updated = frontMatter(yaml, setting: key, to: value)
+        guard updated != yaml else { return text }
+        lines.replaceSubrange(1..<close, with: updated.components(separatedBy: "\n").map { crlf ? $0 + "\r" : $0 })
+        return lines.joined(separator: "\n")
+    }
+
+    /// Front matter with the plain value `key: value` set (like `lp-board`), written the way the
+    /// Kanban plugin lays it out. The key is found the way `FrontMatter.value` reads it
+    /// (`key : value` too); if it appears more than once, the later ones go, so the file can only
+    /// be read one way.
     static func frontMatter(_ yaml: String, setting key: String, to value: String) -> String {
-        if FrontMatter.value(for: key, in: yaml) == value { return yaml }
         var lines = yaml.components(separatedBy: "\n")
-        if let index = lines.firstIndex(where: { $0.hasPrefix(key + ":") }) {
-            lines[index] = "\(key): \(value)"
-        } else {
+        // Each line setting the key, with the indented or list lines it owns.
+        let entries = lines.indices.filter { FrontMatter.key(of: lines[$0]) == key }.map { index -> Range<Int> in
+            var end = index + 1
+            while end < lines.count, let first = lines[end].first, first == " " || first == "\t" || lines[end].hasPrefix("- ") {
+                end += 1
+            }
+            return index..<end
+        }
+        guard let first = entries.first else {
             // Insert after the last non-empty line, keeping trailing blank lines.
             let insertAt = (lines.lastIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? -1) + 1
             lines.insert("\(key): \(value)", at: insertAt)
+            return lines.joined(separator: "\n")
         }
+        if entries.count == 1, first.count == 1, FrontMatter.value(for: key, in: yaml) == value { return yaml }
+        // An entry before the plugin's marker moves to just after it: a longer value there could
+        // push the marker out of the part of the file that tells LP it is a board.
+        if let marker = lines.firstIndex(where: { FrontMatter.key(of: $0) == "kanban-plugin" }), first.lowerBound < marker {
+            var place = marker
+            for entry in entries.reversed() {
+                lines.removeSubrange(entry)
+                if entry.lowerBound < place { place -= entry.count }
+            }
+            lines.insert("\(key): \(value)", at: place + 1)
+            return lines.joined(separator: "\n")
+        }
+        for later in entries.dropFirst().reversed() { lines.removeSubrange(later) }
+        lines.replaceSubrange(first, with: ["\(key): \(value)"])
         return lines.joined(separator: "\n")
     }
 }

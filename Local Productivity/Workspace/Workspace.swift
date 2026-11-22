@@ -16,6 +16,12 @@ enum WorkspaceError: LocalizedError {
     case invalidName
     case missing
     case outsideWorkspace
+    case boardIdentity(String)
+    case unreadableBeforeMove(String)
+    case folderUnreadableBeforeMove(String)
+    case unsavedBeforeMove(String)
+    case historyUnwritableBeforeMove(String)
+    case changedBeforeMove(String)
 
     var errorDescription: String? {
         switch self {
@@ -23,6 +29,12 @@ enum WorkspaceError: LocalizedError {
         case .invalidName: return "That name can’t be used."
         case .missing: return "The item could not be found. It may have been moved or deleted."
         case .outsideWorkspace: return "LP only creates and moves files inside the workspace folder."
+        case .boardIdentity(let name): return "LP couldn’t record which board “\(name)” is in its file before moving it, so nothing was moved."
+        case .unreadableBeforeMove(let name): return "LP can’t read “\(name)” as text, so it couldn’t check it before moving it. Nothing was moved."
+        case .folderUnreadableBeforeMove(let name): return "LP can’t look inside “\(name)”, so it couldn’t check the boards in it before moving it. Nothing was moved."
+        case .unsavedBeforeMove(let name): return "LP couldn’t save the open page in “\(name)” before moving it, so nothing was moved."
+        case .historyUnwritableBeforeMove(let name): return "LP can’t update the history of “\(name)” in the workspace’s hidden .lp folder, so nothing was moved."
+        case .changedBeforeMove(let name): return "“\(name)” changed in another app while LP was getting it ready to move, so nothing was moved. Try again."
         }
     }
 }
@@ -57,6 +69,8 @@ final class Workspace {
     @ObservationIgnored var onTreeChanged: (() -> Void)?
     /// What is known about the pages changed: their tasks, dates or titles.
     @ObservationIgnored var onMetaChanged: (() -> Void)?
+    /// LP kept a copy of something it couldn't save where it belonged; tells the person where.
+    @ObservationIgnored var onKeptCopy: ((AlertMessage) -> Void)?
 
     @ObservationIgnored private let defaults: UserDefaults?
     @ObservationIgnored private let index = WorkspaceIndex()
@@ -74,6 +88,7 @@ final class Workspace {
         self.defaults = defaults
         root = FileNode(path: "", name: rootURL.lastPathComponent, isFolder: true, modified: Date())
         restore()
+        authorizedShares = Set(defaults?.stringArray(forKey: sharesKey) ?? [])
     }
 
     // MARK: Lifecycle
@@ -242,6 +257,7 @@ final class Workspace {
     /// Saves pasted data as a file in the attachments folder.
     func storeAttachment(_ data: Data, name: String, fileExtension: String) throws -> URL {
         let folder = attachmentsFolder
+        guard PathSafety.resolvesInside(folder, root: rootURL) else { throw WorkspaceError.outsideWorkspace }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let fileName = Self.availableName(Self.sanitized(name) ?? "attachment", extension: fileExtension, in: folder)
         let destination = folder.appendingPathComponent(fileName)
@@ -255,6 +271,7 @@ final class Workspace {
         let standardized = source.standardizedFileURL
         if standardized.path.hasPrefix(rootURL.standardizedFileURL.path + "/") { return standardized }
         let folder = attachmentsFolder
+        guard PathSafety.resolvesInside(folder, root: rootURL) else { throw WorkspaceError.outsideWorkspace }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let ext = standardized.pathExtension
         let fileName = Self.availableName(standardized.deletingPathExtension().lastPathComponent,
@@ -279,18 +296,29 @@ final class Workspace {
     private func attachments() -> [String: URL] {
         if let attachmentsByName { return attachmentsByName }
         var found: [String: URL] = [:]
-        let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey],
+        let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
                                                         options: [.skipsHiddenFiles, .skipsPackageDescendants])
         var visited = 0
         while let file = enumerator?.nextObject() as? URL, visited < 60_000 {
             visited += 1
             let ext = file.pathExtension.lowercased()
             guard !ext.isEmpty, !WorkspaceScanner.pageExtensions.contains(ext) else { continue }
+            // A link to a file elsewhere doesn't make that file part of the workspace.
+            if (try? file.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true,
+               !PathSafety.isInside(file, root: rootURL) { continue }
             let key = file.lastPathComponent.lowercased()
             if found[key] == nil { found[key] = file }
         }
         attachmentsByName = found
         return found
+    }
+
+    /// Keeps `text` in LP's Recovered folder (see `RecoveredCopies`) and tells the person.
+    /// Returns false when the copy couldn't be written; the caller must then not drop the text.
+    func keepCopy(_ text: String, name: String, note: String, alertTitle: String, message: String) -> Bool {
+        guard let copy = RecoveredCopies.keep(text, name: name, note: note) else { return false }
+        onKeptCopy?(AlertMessage(title: alertTitle, message: message, file: copy))
+        return true
     }
 
     /// The daily note for `day`, if one exists anywhere in the workspace.
@@ -304,6 +332,8 @@ final class Workspace {
     func createPage(in folder: String = "", title: String? = nil, contents: String = "") throws -> String {
         guard let folder = PathSafety.contained(folder) else { throw WorkspaceError.outsideWorkspace }
         let directory = url(for: folder)
+        // A folder that is a link to somewhere else would carry the new page out of the workspace.
+        guard PathSafety.resolvesInside(directory, root: rootURL) else { throw WorkspaceError.outsideWorkspace }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let base = Self.sanitized(title ?? "Untitled") ?? "Untitled"
         let fileName = Self.availableName(base, extension: "md", in: directory)
@@ -317,6 +347,7 @@ final class Workspace {
     func createFolder(in folder: String = "", name: String = "New Folder") throws -> String {
         guard let folder = PathSafety.contained(folder) else { throw WorkspaceError.outsideWorkspace }
         let directory = url(for: folder)
+        guard PathSafety.resolvesInside(directory, root: rootURL) else { throw WorkspaceError.outsideWorkspace }
         let folderName = Self.availableName(Self.sanitized(name) ?? "New Folder", extension: nil, in: directory)
         try FileManager.default.createDirectory(at: directory.appendingPathComponent(folderName), withIntermediateDirectories: true)
         let path = FileNode.join(folder, folderName)
@@ -350,8 +381,8 @@ final class Workspace {
         if FileManager.default.fileExists(atPath: destination.path), !isCaseChangeOnly {
             throw WorkspaceError.nameTaken(clean)
         }
-        try FileManager.default.moveItem(at: source, to: destination)
         let newPath = FileNode.join(FileNode.parent(of: path), fileName)
+        try moveWithBoards(path, to: newPath) { try FileManager.default.moveItem(at: source, to: destination) }
         pathChanged(from: path, to: newPath)
         return newPath
     }
@@ -362,11 +393,12 @@ final class Workspace {
         guard path != folder, !folder.hasPrefix(path + "/"), FileNode.parent(of: path) != folder else { return path }
         let source = url(for: path)
         let directory = url(for: folder)
+        guard PathSafety.resolvesInside(directory, root: rootURL) else { throw WorkspaceError.outsideWorkspace }
         let name = source.deletingPathExtension().lastPathComponent
         let ext = source.pathExtension
         let fileName = Self.availableName(name, extension: ext.isEmpty ? nil : ext, in: directory)
-        try FileManager.default.moveItem(at: source, to: directory.appendingPathComponent(fileName))
         let newPath = FileNode.join(folder, fileName)
+        try moveWithBoards(path, to: newPath) { try FileManager.default.moveItem(at: source, to: directory.appendingPathComponent(fileName)) }
         expanded.insert(folder)
         pathChanged(from: path, to: newPath)
         return newPath
@@ -379,9 +411,46 @@ final class Workspace {
         let ext = source.pathExtension
         let fileName = Self.availableName(source.deletingPathExtension().lastPathComponent + " copy",
                                           extension: ext.isEmpty ? nil : ext, in: directory)
-        try FileManager.default.copyItem(at: source, to: directory.appendingPathComponent(fileName))
+        let copy = directory.appendingPathComponent(fileName)
+        try FileManager.default.copyItem(at: source, to: copy)
+        do {
+            try Self.giveBoardsNewIdentities(at: copy)
+        } catch {
+            // A copy that would still act as the original board isn't kept.
+            try? FileManager.default.removeItem(at: copy)
+            throw error
+        }
         rebuild()
         return FileNode.join(FileNode.parent(of: path), fileName)
+    }
+
+    /// A board's `lp-board` identity names its history and its shared page. Every board in a copy
+    /// — a copied board, or the boards in a copied folder — gets a new random one, so it starts its
+    /// own history and never publishes to another board's page (nor picks up history left at the
+    /// same path by an earlier copy). Throws when a board's identity couldn't be replaced.
+    private static func giveBoardsNewIdentities(at url: URL) throws {
+        var files = [url]
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey],
+                                                            options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            // Files only: a folder can be called "Research.md" too.
+            files = (enumerator?.allObjects as? [URL] ?? []).filter { file in
+                WorkspaceScanner.pageExtensions.contains(file.pathExtension.lowercased())
+                    && (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+            }
+        }
+        for file in files {
+            let data = try Data(contentsOf: file)
+            guard BoardParser.isBoard(head: data) else { continue }
+            guard let text = String(data: data, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+            var board = BoardParser.parse(text)
+            let id = BoardIDs.newBoardID()
+            board.frontMatter = BoardParser.frontMatter(board.frontMatter, setting: "lp-board", to: id)
+            let written = BoardParser.serialize(board)
+            guard board.boardID == id, BoardParser.isBoard(written) else { throw CocoaError(.fileWriteUnknown) }
+            try SafeFileWriter.write(Data(written.utf8), to: file)
+        }
     }
 
     /// Moves a page or folder to the Trash.
@@ -399,6 +468,7 @@ final class Workspace {
     }
 
     private func pathChanged(from old: String, to new: String) {
+        rebaseShares(from: old, to: new)
         favorites = favorites.map { FileNode.rebased($0, from: old, to: new) ?? $0 }
         recents = recents.map { FileNode.rebased($0, from: old, to: new) ?? $0 }
         expanded = Set(expanded.map { FileNode.rebased($0, from: old, to: new) ?? $0 })
@@ -464,28 +534,31 @@ final class Workspace {
     // MARK: Tasks
 
     /// Flips a task's checkbox directly in its file. Used where tasks are listed outside the editor.
-    func toggleTask(_ task: TaskItem) {
+    /// Throws when the file can't be written; then nothing changes, there or in what LP lists.
+    func toggleTask(_ task: TaskItem) throws {
         let fileURL = url(for: task.path)
         // Only files that are valid UTF-8 are rewritten here; anything else is left for the editor,
         // which knows how to keep a file's encoding.
         guard let data = try? Data(contentsOf: fileURL), let text = String(data: data, encoding: .utf8) else { return }
+        // Still what the task was listed from — another app can turn a board into a page or the
+        // other way round before the index catches up — and, for a card, still the same board.
+        guard BoardParser.isBoard(head: data) == task.isBoardCard else { return }
         if task.isBoardCard {
-            toggleCard(task, in: text, at: fileURL)
+            // The board the task was listed from — one listed without an ID only while the file
+            // still has none.
+            let current = BoardParser.parse(text).boardID.flatMap { BoardIDSafety.isValid($0) ? $0 : nil }
+            guard current == task.boardID else { return }
+            try toggleCard(task, in: text, at: fileURL)
             return
         }
         var document = MarkdownParser.parse(text)
-        var seen = 0
-        for index in document.blocks.indices {
-            guard case .todo(let status, let marker) = document.blocks[index].kind else { continue }
-            // Mirrors the index, which does not count tasks without any text.
-            if document.blocks[index].plainText.trimmingWhitespace.isEmpty { continue }
-            if seen == task.ordinal {
-                document.blocks[index].kind = .todo(status: status == " " ? "x" : " ", marker: marker)
-                try? SafeFileWriter.write(Data(MarkdownSerializer.serialize(document).utf8), to: fileURL)
-                break
-            }
-            seen += 1
-        }
+        // Found the way the index counted it, and checked by its wording, so a page edited since
+        // it was read can't make LP tick a different box.
+        guard let index = PageTasks.block(ofTask: task.ordinal, text: task.text, due: task.due, time: task.dueTime,
+                                          isDone: task.isDone, in: document),
+              case .todo(let status, let marker) = document.blocks[index].kind else { return }
+        document.blocks[index].kind = .todo(status: status == " " ? "x" : " ", marker: marker)
+        try SafeFileWriter.write(Data(MarkdownSerializer.serialize(document).utf8), to: fileURL)
         if let position = meta[task.path]?.tasks.firstIndex(where: { $0.ordinal == task.ordinal }) {
             meta[task.path]?.tasks[position].isDone.toggle()
         }
@@ -493,22 +566,32 @@ final class Workspace {
 
     /// Ticks a board card off, or reopens it. A card reopened from a list whose cards count as
     /// done moves back to the first list that does not.
-    private func toggleCard(_ task: TaskItem, in text: String, at fileURL: URL) {
+    private func toggleCard(_ task: TaskItem, in text: String, at fileURL: URL) throws {
         var board = BoardParser.parse(text)
-        var located: (lane: Int, card: Int)?
-        var ordinal = 0
-        search: for laneIndex in board.lanes.indices {
+        // Every card in order, as the index counted them.
+        var places: [(lane: Int, card: Int)] = []
+        var items: [(text: String, due: Day?, time: TimeOfDay?, isDone: Bool)] = []
+        for laneIndex in board.lanes.indices {
             for cardIndex in board.lanes[laneIndex].cards.indices {
                 let card = board.lanes[laneIndex].cards[cardIndex]
-                let matches = task.cardID.map { card.hasStoredID && card.id == $0 } ?? (ordinal == task.ordinal)
-                if matches {
-                    located = (laneIndex, cardIndex)
-                    break search
-                }
-                ordinal += 1
+                places.append((laneIndex, cardIndex))
+                items.append((card.title.isEmpty ? "Untitled card" : card.title, card.due, CardText.dueTime(in: card.text),
+                              card.isDone || board.lanes[laneIndex].marksComplete))
             }
         }
-        guard let (laneIndex, cardIndex) = located else { return }
+        // A card is found by its ID; one without an ID the way page tasks are (`PageTasks.locate`),
+        // so a card ticked off elsewhere isn't reopened and look-alike cards aren't confused.
+        let found: Int?
+        if let id = task.cardID {
+            found = places.indices.first { index in
+                let card = board.lanes[places[index].lane].cards[places[index].card]
+                return card.hasStoredID && card.id == id
+            }.flatMap { items[$0].isDone == task.isDone ? $0 : nil }
+        } else {
+            found = PageTasks.locate(task.ordinal, among: items, text: task.text, due: task.due, time: task.dueTime, isDone: task.isDone)
+        }
+        guard let found else { return }
+        let (laneIndex, cardIndex) = places[found]
         let lane = board.lanes[laneIndex]
         if lane.cards[cardIndex].isDone || lane.marksComplete {
             board.lanes[laneIndex].cards[cardIndex].isDone = false
@@ -519,7 +602,7 @@ final class Workspace {
         } else {
             board.lanes[laneIndex].cards[cardIndex].isDone = true
         }
-        try? SafeFileWriter.write(Data(BoardParser.serialize(board).utf8), to: fileURL)
+        try SafeFileWriter.write(Data(BoardParser.serialize(board).utf8), to: fileURL)
         if let position = meta[task.path]?.tasks.firstIndex(where: { $0.ordinal == task.ordinal }) {
             meta[task.path]?.tasks[position].isDone.toggle()
         }
@@ -530,11 +613,12 @@ final class Workspace {
     /// Whether the file at `path` is a board. Read from the file itself, which is quick and
     /// always current, rather than from the index.
     func isBoard(_ path: String) -> Bool {
-        guard path.lowercased().hasSuffix(".md"),
+        // The same files the scanner and the index take as pages (`.md` and `.markdown`).
+        guard WorkspaceScanner.pageExtensions.contains((path as NSString).pathExtension.lowercased()),
               let handle = try? FileHandle(forReadingFrom: url(for: path)) else { return false }
         defer { try? handle.close() }
-        let head = (try? handle.read(upToCount: 1024)) ?? Data()
-        return BoardParser.isBoard(String(decoding: head, as: UTF8.self))
+        let head = (try? handle.read(upToCount: BoardParser.boardMarkerWindow)) ?? Data()
+        return BoardParser.isBoard(head: head)
     }
 
     func createBoard(in folder: String = "", title: String = "Untitled Board", template: BoardTemplate = .simple) throws -> String {
@@ -563,6 +647,264 @@ final class Workspace {
     }
 
     private var stateKey: String { "workspace.state.\(record.id.uuidString)" }
+
+    // MARK: Sharing
+
+    /// The shared pages this Mac may update or delete: ones LP published here, or that the person
+    /// allowed — each bound to the board's file, its board ID and its gist. The record of a share
+    /// in a board's history lives in the folder, which whoever handed it over could have written,
+    /// and a copy of the board made outside LP carries it along, so that record is not enough.
+    private(set) var authorizedShares: Set<String> = []
+
+    private var sharesKey: String { "workspace.shares.\(record.id.uuidString)" }
+
+    private static func shareKey(path: String, board: String, page: String) -> String {
+        ShareGrantKey.make(path: path, board: board, page: page)
+    }
+
+    func isShareAuthorized(path: String, board: String, page: String) -> Bool {
+        authorizedShares.contains(Self.shareKey(path: path, board: board, page: page))
+    }
+
+    func authorizeShare(path: String, board: String, page: String) {
+        authorizedShares.insert(Self.shareKey(path: path, board: board, page: page))
+        defaults?.set(authorizedShares.sorted(), forKey: sharesKey)
+    }
+
+    /// Whether this Mac may update a shared page for board `id`, from any file. Sharing writes a
+    /// board's ID into its file first, so a file without that ID is never that board.
+    func hasShareGrant(board id: String) -> Bool {
+        authorizedShares.contains { ShareGrantKey.parts(of: $0)?.board == id }
+    }
+
+    func revokeShare(path: String, board: String, page: String) {
+        authorizedShares.remove(Self.shareKey(path: path, board: board, page: page))
+        defaults?.set(authorizedShares.sorted(), forKey: sharesKey)
+    }
+
+    /// Another board file with the board ID `id` that was created before the one at `path`. Dates
+    /// come from the files; before the first index is ready (a board reopened at launch) every
+    /// page is looked at, so the answer doesn't depend on what has been indexed.
+    func olderBoard(withID id: String, than path: String) -> String? {
+        otherBoard(withID: id, than: path, olderOnly: true)
+    }
+
+    /// Another board file with the board ID `id` — with `olderOnly`, one created before the one at
+    /// `path`.
+    func otherBoard(withID id: String, than path: String, olderOnly: Bool = false) -> String? {
+        func created(_ page: String) -> Date {
+            (try? url(for: page).resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantFuture
+        }
+        let mine = olderOnly ? created(path) : .distantFuture
+        let candidates = hasIndexed ? meta.values.filter(\.isBoard).map(\.path) : pages.map(\.path)
+        return candidates.first { other in
+            !isSameFile(other, path) && (!olderOnly || created(other) < mine) && boardID(at: other) == id
+        }
+    }
+
+    /// Whether two workspace paths name the same file — on a case-insensitive volume
+    /// "Launch.md" and "launch.md" do, as do two hard links. Compared by the file's identity.
+    func isSameFile(_ a: String, _ b: String) -> Bool {
+        guard a != b else { return true }
+        func identity(_ path: String) -> (Int, Int)? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url(for: path).path),
+                  let file = (attributes[.systemFileNumber] as? NSNumber)?.intValue,
+                  let volume = (attributes[.systemNumber] as? NSNumber)?.intValue else { return nil }
+            return (volume, file)
+        }
+        guard let first = identity(a), let second = identity(b) else { return false }
+        return first == second
+    }
+
+    /// The board ID stored in the board file at `path`, if it is a board that has one.
+    func boardID(at path: String) -> String? {
+        let fileURL = url(for: path)
+        // A quick look at the top first: most pages aren't boards.
+        guard let head = Self.head(of: fileURL), BoardParser.isBoard(head: head),
+              let text = BoardStore.readText(at: fileURL), BoardParser.isBoard(text) else { return nil }
+        return BoardParser.parse(text).boardID.flatMap { BoardIDSafety.isValid($0) ? $0 : nil }
+    }
+
+
+    /// Before LP moves boards, the ID each one's history goes by is written into its file when it
+    /// isn't there yet — a board known only by its path, or a copy made outside LP — so moving it
+    /// doesn't change which board it is (its history and sharing permission go by that ID).
+    /// Throws when it can't be written; then nothing is moved.
+    /// Asked before LP renames or moves `path` (a file, or a folder and all in it): the open page
+    /// there saves its edits first, so an edit waiting to be saved can't undo the board ID written
+    /// next. False stops the move. (After it, the page reads its file again — `pathChanged`.)
+    var onWillMove: ((String) -> Bool)?
+
+    #if DEBUG
+    /// Runs between a move's checks and its writes (the harness's `move-race:` step).
+    static var betweenMoveChecksAndWrites: (() -> Void)?
+    #endif
+
+    /// A board's history that moves with it: the board file's path now, and after the move.
+    private struct HistoryMove {
+        let id: String
+        let name: String
+        let source: String
+        let destination: String
+    }
+
+    /// Moves `path` to `newPath` with `move`, taking the boards in it along: the open page there
+    /// saves first; each board gets its ID in its file; and each board's history is told its new
+    /// place *before* the move — a history that can't be told stops the move instead of being left
+    /// behind, where a copy later put at the old path could take it over. If the move fails, each
+    /// history records its board where it still is — with its ID in its file, as it now has.
+    private func moveWithBoards(_ path: String, to newPath: String, _ move: () throws -> Void) throws {
+        guard onWillMove?(path) ?? true else { throw WorkspaceError.unsavedBeforeMove(FileNode.title(of: path)) }
+        let histories = try persistBoardIdentities(at: path, movingTo: newPath)
+        // If the move doesn't happen, every one of them records its board where it still is — with its
+        // ID in its file, as it now has — including any not told yet.
+        func putBack() {
+            for history in histories {
+                _ = BoardStore.setHistoryOwner(id: history.id, root: rootURL, path: history.source, fileHasID: true)
+            }
+        }
+        for history in histories {
+            guard BoardStore.setHistoryOwner(id: history.id, root: rootURL, path: history.destination, fileHasID: true) else {
+                putBack()
+                throw WorkspaceError.historyUnwritableBeforeMove(history.name)
+            }
+        }
+        do {
+            try move()
+        } catch {
+            putBack()
+            throw error
+        }
+    }
+
+    /// Before a move: every board at or under `path` gets its ID written into its file if it isn't
+    /// there yet, and the histories that must move with them are returned. Everything is checked
+    /// before anything is written, so a board that stops the move does so with nothing changed;
+    /// if writing an ID then fails, the boards already given theirs have their histories say so.
+    /// Throws, with nothing moved, when a board or its history can't be checked or written.
+    private func persistBoardIdentities(at path: String, movingTo newPath: String) throws -> [HistoryMove] {
+        struct Checked { let path: String; let name: String; let url: URL; let original: String; let id: String; let updated: String?; let hasHistory: Bool }
+        var boards: [Checked] = []
+        // 1. Check. The files as they are now, not the index (which may be behind, or not ready yet).
+        for boardPath in try pageFiles(at: path) {
+            let fileURL = url(for: boardPath)
+            let name = FileNode.title(of: boardPath)
+            // A quick look at its top: only a file that names the Kanban plugin can be a board. One
+            // that can't be opened stops the move unless it is known not to be a board.
+            guard let head = Self.head(of: fileURL) else {
+                if meta[boardPath]?.isBoard ?? true { throw WorkspaceError.unreadableBeforeMove(name) }
+                continue
+            }
+            guard BoardParser.isBoard(head: head) else { continue }
+            // Read in full. One that can't be read as UTF-8 text stops the move, rather than being
+            // skipped (losing its identity) or written back damaged.
+            guard let text = BoardStore.readText(at: fileURL) else { throw WorkspaceError.unreadableBeforeMove(name) }
+            // No longer a board: an ordinary note is never rewritten as one.
+            guard BoardParser.isBoard(text) else { continue }
+            let stored = BoardParser.parse(text).boardID.flatMap { BoardIDSafety.isValid($0) ? $0 : nil }
+            let id = BoardStore.historyID(for: boardPath, storedID: stored, in: self)
+            // The history it goes by (whatever spelling of this file it recorded) moves with it, so
+            // one that exists must be one LP can read and update: inside the workspace, and writable.
+            let history = BoardStore.logURL(id: id, root: rootURL)
+            let hasHistory = FileManager.default.fileExists(atPath: history.path)
+            if hasHistory {
+                guard BoardStore.historyOwner(id: id, root: rootURL) != nil,
+                      PathSafety.resolvesInside(history, root: rootURL),
+                      FileManager.default.isWritableFile(atPath: history.path),
+                      FileManager.default.isWritableFile(atPath: history.deletingLastPathComponent().path) else {
+                    throw WorkspaceError.historyUnwritableBeforeMove(name)
+                }
+            }
+            // Its ID, if it isn't in its file yet: only the front matter changes, the rest of the file
+            // stays exactly as it is — and only if the file will read back with that ID, as a board.
+            var updated: String?
+            if id != stored {
+                guard let text = BoardParser.settingFrontMatter("lp-board", to: id, in: text),
+                      BoardParser.parse(text).boardID == id, BoardParser.isBoard(text) else {
+                    throw WorkspaceError.boardIdentity(name)
+                }
+                updated = text
+            }
+            boards.append(Checked(path: boardPath, name: name, url: fileURL, original: text, id: id, updated: updated, hasHistory: hasHistory))
+        }
+        #if DEBUG
+        // The harness's `move-race:` step changes a file here, as another app could.
+        Self.betweenMoveChecksAndWrites?()
+        #endif
+        // 2. Write the IDs. One that can't be written stops the move; those already written stay (they
+        //    are the boards' own IDs), and their histories are told so.
+        var written: [Checked] = []
+        func tellWritten() {
+            for done in written where done.hasHistory {
+                _ = BoardStore.setHistoryOwner(id: done.id, root: rootURL, path: done.path, fileHasID: true)
+            }
+        }
+        for board in boards {
+            guard let updated = board.updated else { continue }
+            // Only over the file as it was checked: one changed since (in Obsidian, by sync) isn't
+            // written over — the move stops, and can simply be tried again.
+            guard BoardStore.readText(at: board.url) == board.original else {
+                tellWritten()
+                throw WorkspaceError.changedBeforeMove(board.name)
+            }
+            do {
+                try SafeFileWriter.write(Data(updated.utf8), to: board.url)
+            } catch {
+                tellWritten()
+                throw WorkspaceError.boardIdentity(board.name)
+            }
+            written.append(board)
+        }
+        return boards.filter(\.hasHistory).map { board in
+            HistoryMove(id: board.id, name: board.name, source: board.path,
+                        destination: newPath + String(board.path.dropFirst(path.count)))
+        }
+    }
+
+    /// The Markdown files at `path` — the file itself, or every one in the folder. Throws when a
+    /// folder in it can't be read, since what is in there can't be checked.
+    private func pageFiles(at path: String) throws -> [String] {
+        let base = url(for: path)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: base.path, isDirectory: &isDirectory) else { return [] }
+        guard isDirectory.boolValue else { return [path] }
+        var unreadable: URL?
+        guard let enumerator = FileManager.default.enumerator(
+            at: base, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { url, _ in unreadable = url; return false }) else {
+            throw WorkspaceError.folderUnreadableBeforeMove(FileNode.title(of: path))
+        }
+        let files = enumerator.allObjects as? [URL] ?? []
+        if let unreadable {
+            throw WorkspaceError.folderUnreadableBeforeMove(unreadable.lastPathComponent)
+        }
+        let prefix = base.standardizedFileURL.path + "/"
+        return files.compactMap { file in
+            guard WorkspaceScanner.pageExtensions.contains(file.pathExtension.lowercased()),
+                  (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { return nil }
+            let full = file.standardizedFileURL.path
+            guard full.hasPrefix(prefix) else { return nil }
+            return FileNode.join(path, String(full.dropFirst(prefix.count)))
+        }
+    }
+
+    /// The bytes `BoardParser.isBoard(head:)` looks at, or nil when the file can't be opened.
+    private static func head(of url: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        return (try? handle.read(upToCount: BoardParser.boardMarkerWindow)) ?? Data()
+    }
+
+    /// Permissions follow boards that LP renames or moves, open or not.
+    private func rebaseShares(from old: String, to new: String) {
+        let rebased = Set(authorizedShares.map { key -> String in
+            guard let parts = ShareGrantKey.parts(of: key), let path = FileNode.rebased(parts.path, from: old, to: new) else { return key }
+            return Self.shareKey(path: path, board: parts.board, page: parts.page)
+        })
+        guard rebased != authorizedShares else { return }
+        authorizedShares = rebased
+        defaults?.set(authorizedShares.sorted(), forKey: sharesKey)
+    }
 
     private func restore() {
         guard let data = defaults?.data(forKey: stateKey),

@@ -31,6 +31,17 @@ nonisolated enum PathSafety {
         let base = root.standardizedFileURL.resolvingSymlinksInPath().path
         return target == base || target.hasPrefix(base.hasSuffix("/") ? base : base + "/")
     }
+
+    /// Whether something written at `url` — which need not exist yet — lands inside `root`. The
+    /// nearest part of the path that exists is resolved, so a folder inside the workspace that
+    /// is a link to somewhere else can't carry a new file out of it.
+    static func resolvesInside(_ url: URL, root: URL) -> Bool {
+        var existing = url.standardizedFileURL
+        while !FileManager.default.fileExists(atPath: existing.path), existing.pathComponents.count > 1 {
+            existing.deleteLastPathComponent()
+        }
+        return isInside(existing, root: root)
+    }
 }
 
 /// What to do with a link the user clicked in a note.
@@ -81,5 +92,23 @@ nonisolated enum LinkSafety {
 nonisolated enum BoardIDSafety {
     static func isValid(_ id: String) -> Bool {
         (1...64).contains(id.count) && id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+    }
+}
+
+/// The key of a sharing grant: the board file's path, its board ID and the gist ID, joined by
+/// U+001F. Board and gist IDs can't contain that character (`BoardIDSafety`, gist IDs are letters
+/// and digits), so a key is read from the right, and a path that contains it is kept whole.
+nonisolated enum ShareGrantKey {
+    static let separator: Character = "\u{1F}"
+
+    static func make(path: String, board: String, page: String) -> String {
+        [path, board, page].joined(separator: String(separator))
+    }
+
+    static func parts(of key: String) -> (path: String, board: String, page: String)? {
+        guard let last = key.lastIndex(of: separator) else { return nil }
+        let head = key[..<last]
+        guard let middle = head.lastIndex(of: separator) else { return nil }
+        return (String(head[..<middle]), String(head[head.index(after: middle)...]), String(key[key.index(after: last)...]))
     }
 }

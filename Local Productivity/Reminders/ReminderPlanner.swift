@@ -37,6 +37,8 @@ nonisolated struct ReminderTask: Hashable, Sendable {
     var time: TimeOfDay? = nil
     var isCard = false
     var cardID: String? = nil
+    /// The board a card is on (its `lp-board`), when it has one.
+    var boardID: String? = nil
 }
 
 nonisolated struct ReminderEvent: Hashable, Sendable {
@@ -74,6 +76,10 @@ nonisolated enum ReminderInfo {
     static let cardID = "cardID"
     static let day = "day"
     static let time = "time"
+    /// The workspace the reminder was planned for (its record's ID).
+    static let workspace = "workspace"
+    /// For a card, the board it is on: acting on the reminder checks the file is still that board.
+    static let board = "board"
 }
 
 nonisolated enum ReminderPlanner {
@@ -86,7 +92,7 @@ nonisolated enum ReminderPlanner {
     /// `tasks` are the open tasks and cards that have a due date; `events` are those of the
     /// visible calendars.
     static func plan(tasks: [ReminderTask], events: [ReminderEvent], settings: ReminderSettings, now: Date,
-                     calendar: Calendar = .current, limit: Int = systemLimit) -> [PlannedReminder] {
+                     workspace: String? = nil, calendar: Calendar = .current, limit: Int = systemLimit) -> [PlannedReminder] {
         let horizon = now.addingTimeInterval(Double(horizonDays) * 86_400)
         var planned: [PlannedReminder] = []
 
@@ -122,6 +128,15 @@ nonisolated enum ReminderPlanner {
         // The same task written twice plans the same reminder twice; the system would show one.
         var seen = Set<String>()
         return planned
+            .map { reminder in
+                // Reminders carry the workspace they were planned for, so acting on one after
+                // switching workspaces can't touch a page of the same name in another.
+                guard let workspace else { return reminder }
+                var stamped = reminder
+                stamped.info[ReminderInfo.workspace] = workspace
+                stamped.id = identifier(reminder.kind, reminder.date, [reminder.id, workspace])
+                return stamped
+            }
             .filter { seen.insert($0.id).inserted }
             .sorted { $0.date != $1.date ? $0.date < $1.date : $0.id < $1.id }
             .prefix(max(0, limit))
@@ -136,7 +151,10 @@ nonisolated enum ReminderPlanner {
                     ReminderInfo.text: task.text, ReminderInfo.day: task.due.iso]
         if let time = task.time { info[ReminderInfo.time] = String(time.minutes) }
         if let cardID = task.cardID { info[ReminderInfo.cardID] = cardID }
-        return PlannedReminder(id: identifier(.task, date, [task.path, task.text, task.source, subtitle]),
+        if let boardID = task.boardID { info[ReminderInfo.board] = boardID }
+        // A card's board is part of its reminder, so one planned before the board had its ID is
+        // replaced by one that carries it.
+        return PlannedReminder(id: identifier(.task, date, [task.path, task.text, task.source, subtitle] + (task.boardID.map { [$0] } ?? [])),
                                kind: .task, date: date, title: task.text, subtitle: subtitle, body: task.source, info: info)
     }
 

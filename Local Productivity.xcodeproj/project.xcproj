@@ -15,6 +15,22 @@
     { "path": "LPWidgetsExtension.entitlements" },
     { "kind": "folder", "path": "Local Productivity", "target-membership": [ "Local Productivity" ] },
     { "kind": "folder", "path": "Shared", "target-membership": [ "LPWidgetsExtension", "Local Productivity" ] },
+    { "kind": "folder", "path": "UpdateCore", "target-membership": [ "LPUpdateInstaller", "Local Productivity" ] },
+    {
+      "kind": "folder",
+      "path": "LPUpdateInstaller",
+      "target-membership": [
+        "LPUpdateInstaller",
+      ],
+      "membership-exceptions": [
+        {
+          "target": "LPUpdateInstaller",
+          "exclusions": [
+            "Info.plist",
+          ],
+        },
+      ],
+    },
     {
       "kind": "folder",
       "path": "LPWidgets",
@@ -41,6 +57,7 @@
       "name": "Products",
       "children": [
         { "path": "<PRODUCTS>/LP.app", "id": "ADE4885930AAEFEA00E7A4B9", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/LPUpdateInstaller.xpc", "id": "B1A5C0DE30C0FFEE00A1B2C3", "type": "wrapper.xpc-service", "index": false, "target-membership": [ { "build-phase": "Local Productivity/copy/Embed XPC Services", "header-preservation": "remove-on-copy" } ] },
         { "path": "<PRODUCTS>/LPWidgetsExtension.appex", "id": "ADA3D15E30AD543300B0765C", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Local Productivity/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
       ],
     },
@@ -53,6 +70,7 @@
       "product-type": "application",
       "dependencies": [
         "LPWidgetsExtension",
+        "LPUpdateInstaller",
       ],
       "build-phases": [
         "compile-sources",
@@ -62,6 +80,12 @@
           "kind": "copy",
           "name": "Embed Foundation Extensions",
           "bundle-base-path": "plugins-directory",
+        },
+        {
+          "kind": "copy",
+          "name": "Embed XPC Services",
+          "bundle-base-path": "contents-directory",
+          "relative-path": "XPCServices",
         },
       ],
       "build-settings": {
@@ -91,7 +115,7 @@
         "INFOPLIST_KEY_CFBundleDisplayName": "LP",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.productivity",
         "INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription": "LP shows your calendar events next to your notes, and lets you create, change and delete events. Changes are saved back to your calendars.",
-        "INFOPLIST_KEY_NSHumanReadableCopyright": "",
+        "INFOPLIST_KEY_NSHumanReadableCopyright": "Copyright © 2026 LTF-Git-Dev. Released under the MIT License.",
         "LD_RUNPATH_SEARCH_PATHS": [
           "$(inherited)",
           "@executable_path/../Frameworks",
@@ -132,7 +156,7 @@
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "LPWidgets/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "LP",
-        "INFOPLIST_KEY_NSHumanReadableCopyright": "",
+        "INFOPLIST_KEY_NSHumanReadableCopyright": "Copyright © 2026 LTF-Git-Dev. Released under the MIT License.",
         "LD_RUNPATH_SEARCH_PATHS": [
           "$(inherited)",
           "@executable_path/Frameworks",
@@ -152,6 +176,32 @@
         "SWIFT_APPROACHABLE_CONCURRENCY": "YES",
         "SWIFT_EMIT_LOC_STRINGS": "YES",
         "SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY": "YES",
+        "SWIFT_VERSION": "5.0",
+      },
+    },
+    {
+      "name": "LPUpdateInstaller",
+      "id": "B1A5C0DE30C0FFEE00A1B2C4",
+      "product": "Products/LPUpdateInstaller.xpc",
+      "product-type": "xpc-service",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "build-settings": {
+        "CODE_SIGN_STYLE": "Automatic",
+        "ENABLE_APP_SANDBOX": "NO",
+        "ENABLE_HARDENED_RUNTIME": "YES",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "INFOPLIST_FILE": "LPUpdateInstaller/Info.plist",
+        "INFOPLIST_KEY_CFBundleDisplayName": "LP Update Installer",
+        "INFOPLIST_KEY_NSHumanReadableCopyright": "Copyright © 2026 LTF-Git-Dev. Released under the MIT License.",
+        "PRODUCT_BUNDLE_IDENTIFIER": "LTF.Local-Productivity.UpdateInstaller",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SKIP_INSTALL": "YES",
+        "SUPPORTED_PLATFORMS": "macosx",
+        "SWIFT_APPROACHABLE_CONCURRENCY": "YES",
         "SWIFT_VERSION": "5.0",
       },
     },
@@ -212,7 +262,7 @@
     "GCC_WARN_UNUSED_VARIABLE": "YES",
     "LOCALIZATION_PREFERS_STRING_CATALOGS": "YES",
     "MACOSX_DEPLOYMENT_TARGET": "15.0",
-    "MARKETING_VERSION": "1.0.0",
+    "MARKETING_VERSION": "1.0.1",
     "MTL_ENABLE_DEBUG_INFO[config=Debug]": "INCLUDE_SOURCE",
     "MTL_ENABLE_DEBUG_INFO[config=Release]": "NO",
     "MTL_FAST_MATH": "YES",

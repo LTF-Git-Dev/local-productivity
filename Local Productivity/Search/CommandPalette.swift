@@ -55,8 +55,8 @@ struct CommandPalette: View {
             .prefix(7)
         items.append(contentsOf: matches.map { pageItem($0, section: "Pages") })
 
-        let shown = Set(matches.map(\.path))
-        for hit in contentHits where !shown.contains(hit.path) && !hit.isTitleMatch {
+        // Everything else that matched, inside the page or partly in its name (SearchHit.inPages).
+        for hit in SearchHit.inPages(contentHits, listedAsPages: Set(matches.map(\.path))) {
             items.append(Item(id: "hit:" + hit.path, emoji: hit.icon, symbol: "text.magnifyingglass", title: hit.title,
                               subtitle: hit.snippet, section: "In pages") { open(hit.path) })
             if items.count > 14 { break }
@@ -220,6 +220,10 @@ struct CommandPalette: View {
                         row(item, isSelected: index == selection)
                             .id(item.id)
                             .onTapGesture { item.run() }
+                            // One button per result for VoiceOver, as the keyboard already has.
+                            .accessibilityElement(children: .combine)
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { item.run() }
                             .onHover { if $0 { selection = index } }
                     }
                 }

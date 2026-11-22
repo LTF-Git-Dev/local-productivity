@@ -208,3 +208,86 @@ Capture with the snapshot harness and look at every image:
 - [ ] Empty, loading and error states designed (not blank)
 - [ ] Long text truncates or wraps gracefully; no clipped labels
 - [ ] Charts: legend for ≥ 2 series, hairline solid grid, table view, no dual axes
+
+## 11. Brand
+
+**The owner chose 08 — Orbit Bear on 20 November 2026.** It is the installed identity on
+`feature/brand-icon`: a compact charcoal teddy with round ears, small eyes, silver muzzle,
+gentle smile, rosy cheeks, one light cyan headset and a circular progress ring. **07 Focus Bear**
+and **09 Desk Bear** remain explorations; 07 is no longer installed or the current recommendation.
+
+The **64 px and larger app icons** preserve the full 08 bear/ring. Dedicated **16/32 masters**
+remove the body, ring and inner-ear detail and enlarge/recenter the head by 40%. Eyes, headset,
+cheeks, pads and smile are strengthened. This keeps the chosen character readable without
+shrinking its face around a progress ring. Both native sizes and 64 px were rendered and viewed.
+The original **1024 canvas, 824 × 824 continuous-corner tile at (100,100)**, transparent margin
+and soft vector shadow are unchanged.
+
+The **logo mark and horizontal LP lockup use the head and headset**, matching the optical icon.
+This is the clearest mark for small placements and beside letters: the ears, cyan pads and face
+identify Orbit Bear without a second circular form competing for space. Logos are transparent,
+without tile/shadow. The lockup retains custom filled LP paths. Dark variants lift the ears to
+silver-charcoal and reverse the letters; the face and cyan pads stay consistent. Use the normal
+logo on light surfaces, the dark variant on `#202329` or darker. Minimum logo canvas 64 px;
+minimum lockup width 160 px. Use the optical app export for tiny app-icon placements.
+
+The palette remains off-white `#FDFCF9`, charcoal `#33363D`–`#51545C` with grey face `#71747C`,
+soft red cheeks `#E3A0A5`, pale cyan `#BDE9EE`, lavender `#EEEEF3` and silver `#DEDEDA`.
+LP letters clear **11.29:1** on `#F8F7F4`, or **14.70:1** when reversed on `#202329`.
+The chosen face clears **4.04:1** against the darkest tile stop; eyes/face **3.37:1**;
+cyan pads/face **3.57:1**; the dark mark's face/background **3.37:1**. Text clears 4.5:1 and
+meaningful solid graphic pairs 3:1; blush and material highlights are decorative. There are
+no SVG filters, bitmap textures or external fonts. App UI colours and SF Symbols are unchanged.
+
+**Google branding:** `exports/google-branding-logo-120.png` is the same head mark on an opaque
+`#F8F7F4` square, exactly **120 × 120**, under **1,000,000 bytes**. It has no tile, shadow or letters.
+The renderer validates its dimensions and file size before writing and in `--check`. It is a
+local export; no upload to Google is part of this task.
+
+All design materials live outside the app repository in **`../LP Design/brand/`**:
+[brand guide](<../../LP Design/brand/README.md>), `source/`, `explorations/`, `exports/`, and
+`make-icon.swift`. Watercolour work remains in `explorations/archive/`; 04/05/06 and their small
+masters remain unchanged in `explorations/archive/line-art/`. Do not recreate `design/` or the
+renderer under `Scripts/`. From the app repository:
+
+```sh
+swift "../LP Design/brand/make-icon.swift" --app .
+swift "../LP Design/brand/make-icon.swift" --app . --check
+swift "../LP Design/brand/make-icon.swift" --app . --self-test-guards
+python3 Scripts/make-site.py
+```
+
+The renderer's brand/app lookup, four exact output folders, symlink containment/file guards,
+catalog validation and preflight-before-write rules are unchanged. **26 guard cases and
+`--check` pass.** Contents.json is preserved; archives and source folders are not renderer
+outputs. Both `exports/preview.png` and `exports/small-preview.png` label **08 as chosen**.
+The app catalog, guide PNG and local website icon use 08. Nothing is released.
+
+Claude verified the installed 08 outside the builder's sandbox (20 November 2026): the build,
+all 927 tests (0 failed), `--check` (including the Google logo's size limit), the 26 guard
+self-tests and the guide PDF rebuild (cover looked at); Orbit Bear is in the built app, the full
+bear at 256 px and the head-only master in the 32 px slot. The builder's own test failures came
+from its sandbox (macro plugins and file types), not from LP.
+
+## 12. Website
+
+The public site (`Scripts/make-site.py` → `../LTF-Git-Dev.github.io`) uses the same principles
+with a web finish: Notion's structure (a navy hero band with the product in it, tinted feature
+tiles), Apple's type (the system font, tight display tracking) and LP's colours. Light and dark
+follow the visitor's setting. Every text colour below was measured against every surface it sits
+on: all clear WCAG AA (4.5:1), most clear AAA.
+
+| | Light | Dark | Use |
+|---|---|---|---|
+| Page · soft band · cards | `#FFFFFF` · `#F5F5F7` · `#FFFFFF` | `#0E0E10` · `#161618` · `#1C1C1F` | Surfaces |
+| Ink · secondary · tertiary | `#1D1D1F` · `#515156` · `#6B6B70` | `#F2F2F4` · `#B4B4BA` · `#8F8F96` | Text (tertiary ≥ 4.7:1) |
+| Link · button | `#1A63CC` · `#1A63CC` (white 5.7:1) | `#5AA5FF` · `#2B6FD8` (white 4.8:1) | The one accent |
+| Hero band | `#0C1424` → `#13203A` | `#080D18` → `#0F1A30` | With soft aqua, blue and pink glows (the Orbit Bear's colours) and a faint dot grid |
+| Tile tints | sky `#EAF2FD`, mint `#E5F5F2`, rose `#FDEEF1`, lilac `#F0EDFC`, sand `#FBF4E4`, slate `#F1F2F5` | `#121C2C`, `#10231F`, `#261519`, `#1B1830`, `#241E10`, `#1A1B1F` | One per feature; its icon in the tile's hue |
+
+- **Shapes:** chips 8px, controls 12px, screenshots 14px, cards 20px, the Get LP band 28px.
+- **Pictures:** only LP's real windows (harness captures in the visitor's look; AVIF with a JPEG
+  fallback), never drawn fake interfaces. Icons from Phosphor Icons, never drawn by hand.
+- **Motion:** the hero rises in; feature tiles rise as they scroll in. None with Reduce Motion.
+- **Nothing from elsewhere:** no scripts, web fonts, analytics or embeds.
+

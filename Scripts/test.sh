@@ -2,7 +2,8 @@
 # Compiles and runs the standalone test suites. No Xcode project or simulator needed.
 #
 #   Scripts/test.sh            all suites
-#   Scripts/test.sh markdown   one suite: markdown | calendar | safety | widgets | reminders | boards
+#   Scripts/test.sh markdown   one suite: markdown | calendar | safety | widgets | reminders | tasks | search | updates | boards | ownership
+#   LP_TEST_VERBOSE=1 Scripts/test.sh ownership   prints every ownership check (who may change what)
 
 ROOT="${0:A:h:h}"
 SRC="$ROOT/Local Productivity"
@@ -45,12 +46,33 @@ run_suite widgets \
 run_suite reminders \
   "$SRC/App/Day.swift" "$SRC/Reminders/ReminderPlanner.swift" "$ROOT/Tests/ReminderTests/main.swift"
 
+run_suite tasks \
+  "$SRC/App/Day.swift" "$SRC/Markdown/"*.swift "$SRC/Workspace/PageTasks.swift" "$ROOT/Tests/TaskTests/main.swift"
+
+run_suite search \
+  "$SRC/Search/SearchHit.swift" "$ROOT/Tests/SearchTests/main.swift"
+
+run_suite updates \
+  "$ROOT/UpdateCore/UpdateCore.swift" "$ROOT/Tests/UpdateTests/main.swift"
+
 if [[ -d "$ROOT/Tests/BoardTests" ]]; then
   run_suite boards \
     "$SRC/App/Day.swift" \
     "$SRC/Markdown/"*.swift \
     "$SRC/Boards/Model/"*.swift \
+    "$SRC/Workspace/Safety.swift" \
     "$ROOT/Tests/BoardTests/main.swift"
 fi
+
+# Person A makes something; person B (or a forged file, link or sign-in reply) tries to change it.
+run_suite ownership \
+  "$SRC/App/Day.swift" \
+  "$SRC/Markdown/"*.swift \
+  "$SRC/Boards/Model/"*.swift \
+  "$SRC/Workspace/Safety.swift" \
+  "$SRC/Calendar/Sync/CalendarSyncModels.swift" \
+  "$SRC/Calendar/Sync/OAuthCore.swift" \
+  "$SRC/../Shared/WidgetSnapshot.swift" \
+  "$ROOT/Tests/OwnershipTests/main.swift"
 
 exit $STATUS

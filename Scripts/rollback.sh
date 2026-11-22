@@ -7,7 +7,8 @@
 #                                        as one commit on top of main, so history is kept
 #
 # main is never changed here. A source rollback is a branch to check, merge and release with
-# Scripts/deploy.sh like any other change. It restores the app, not the way it is released: the
+# Scripts/deploy.sh like any other change — a beta first, official once the owner confirms it.
+# Betas (pre-releases) can be downloaded too: Scripts/rollback.sh 1.0.1-beta.1 It restores the app, not the way it is released: the
 # release scripts, the documentation and the agent rules stay as they are now.
 
 set -euo pipefail
@@ -43,8 +44,10 @@ if [[ "$MODE" == "--source" ]]; then
     ':(exclude)docs' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md' ':(exclude)CODEX.md' ':(exclude)CHANGELOG.md'
   git commit -q -m "Roll back to $TAG" -m "Restores the code of $TAG on top of main. History is kept; release scripts and docs are unchanged."
   echo "Created $BRANCH with the code of $TAG."
-  echo "Next: set MARKETING_VERSION to a new version (a rollback is released as a new version, e.g. 1.1.1),"
-  echo "run Scripts/test.sh && Scripts/build.sh, merge into main and release with Scripts/deploy.sh."
+  echo "Next, as with any change (docs/RELEASING.md): set MARKETING_VERSION to a new version (a rollback is"
+  echo "released as a new version, e.g. 1.1.1), run Scripts/test.sh && Scripts/build.sh and push $BRANCH."
+  echo "Once the owner says yes, publish it as a beta: Scripts/deploy.sh 1.1.1-beta.1 --confirmed"
+  echo "Only after the owner confirms that beta: merge into main and Scripts/deploy.sh 1.1.1 --confirmed."
   exit 0
 fi
 

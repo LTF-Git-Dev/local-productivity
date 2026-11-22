@@ -139,6 +139,10 @@ struct EditorMenuView: View {
                                 row(item, isSelected: index == model.selection)
                                     .id(item.id)
                                     .onTapGesture { model.onPick?(item) }
+                                    // One button per choice for VoiceOver, as the keyboard already has.
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityAction { model.onPick?(item) }
                                     .onHover { if $0 { model.selection = index } }
                             }
                         }

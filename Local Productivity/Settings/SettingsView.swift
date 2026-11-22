@@ -87,9 +87,35 @@ private struct GeneralSettings: View {
                     Button("Choose a Folder…") { app.chooseWorkspace() }
                 }
             }
+
+            UpdateSettingsSection(updater: app.updater)
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Settings → General → Updates.
+private struct UpdateSettingsSection: View {
+    @Bindable var updater: Updater
+
+    var body: some View {
+        Section {
+            Toggle("Check for updates automatically", isOn: $updater.checksAutomatically)
+            Toggle("Include beta versions", isOn: $updater.includesBetas)
+            LabeledContent {
+                Button("Check Now") { updater.checkNow() }
+            } label: {
+                Text(Updater.currentDescription)
+                if let last = updater.lastCheck {
+                    Text("Last checked \(last.formatted(.relative(presentation: .named)))")
+                }
+            }
+        } header: {
+            Text("Updates")
+        } footer: {
+            Text("LP looks for new versions on its GitHub page once a day and asks before installing one. Betas get new features first and may have rough edges.")
+        }
     }
 }
 
@@ -211,64 +237,97 @@ struct CalendarSettingsView: View {
 
     private var sync: CalendarSyncStore { app.calendarSync }
     private var bundleID: String { Bundle.main.bundleIdentifier ?? "LTF.Local-Productivity" }
+    /// System Settings → Internet Accounts, where Google, Exchange and other accounts are added to the Mac.
+    private static let internetAccounts = URL(string: "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension")!
 
     var body: some View {
         @Bindable var sync = sync
         Form {
             Section {
+                Label {
+                    Text("LP talks to your calendars straight from this Mac — nothing passes through a server of ours, and your sign-in stays in your Keychain. It keeps a year back and two years ahead of your Google and Outlook calendars on this Mac, so they’re there offline. Disconnecting removes LP’s access and that copy.")
+                        .font(.lp(size: 12))
+                        .foregroundStyle(Color.lpInkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "lock.shield")
+                        .foregroundStyle(Color.lpInkTertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+
+            Section {
                 appleRow
+                Button("Add an Account in System Settings…") {
+                    NSWorkspace.shared.open(Self.internetAccounts)
+                }
             } header: {
                 Text("Apple Calendar")
             } footer: {
-                Text("Includes iCloud and any Google, Exchange or other account added in System Settings → Internet Accounts. Changes sync through macOS.")
+                Text("Includes iCloud and any Google, Exchange or other account added in System Settings → Internet Accounts — nothing else to set up. macOS syncs them; LP reads them on this Mac. Microsoft 365 work accounts may stop syncing there until Apple updates macOS for a change Microsoft is making.")
             }
 
             Section {
                 ForEach(sync.accounts.filter { $0.kind == .google }) { account in
                     AccountRow(account: account)
                 }
-                TextField("Client ID", text: $sync.googleClientID, prompt: Text("…apps.googleusercontent.com"))
-                    .textContentType(.none)
-                connectButton(.google, title: "Connect Google Account…",
-                              isReady: GoogleCalendarMapping.configuration(clientID: sync.googleClientID) != nil) {
+                connectButton(.google, title: "Connect Google Account…", isReady: sync.canConnectGoogle) {
                     try await sync.connectGoogle()
                 }
-                SetupGuide(title: "How to get a Google client ID", link: URL(string: "https://console.cloud.google.com/apis/credentials")!,
-                           linkTitle: "Open Google Cloud Console", steps: [
-                    "Create a project in Google Cloud Console.",
-                    "In APIs & Services → Library, enable the Google Calendar API.",
-                    "Set up the OAuth consent screen and add your address as a test user.",
-                    "In Credentials, create an OAuth client ID of type “iOS” with bundle ID \(bundleID).",
-                    "Paste the client ID above, then connect."
-                ], copyValue: bundleID)
+                OwnRegistration(
+                    fieldTitle: "Client ID", prompt: "…apps.googleusercontent.com", clientID: $sync.googleClientID,
+                    hasBuiltIn: BuiltInRegistration.googleClientID != nil,
+                    warning: "If you change it later, boards you shared to Google Drive through the earlier one can’t be updated or removed by LP any more: stop sharing them first.",
+                    steps: [
+                        "Open Google’s Personal mode page, signed in with the Google account you’ll connect — only that account can use it.",
+                        "Choose “iOS” with bundle ID \(bundleID), accept the terms and continue, then copy the client ID.",
+                        "Turn on the Google Calendar API in that project — and the Google Drive API, to share boards to your Drive.",
+                        "Paste the client ID above, then connect."
+                    ],
+                    links: [
+                        ("Personal Mode Page", URL(string: "https://console.cloud.google.com/auth/overview/personal")!),
+                        ("Calendar API", URL(string: "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com")!),
+                        ("Drive API", URL(string: "https://console.cloud.google.com/apis/library/drive.googleapis.com")!)
+                    ],
+                    bundleID: bundleID)
             } header: {
                 Text("Google Calendar")
             } footer: {
-                errorText(.google)
+                VStack(alignment: .leading, spacing: 4) {
+                    if BuiltInRegistration.googleAwaitingReview {
+                        Text("One-click Google connect is coming soon — Google is still reviewing LP. Meanwhile, add your Google account in System Settings → Internet Accounts to see its calendars through Apple Calendar above.")
+                    }
+                    errorText(.google)
+                }
             }
 
             Section {
                 ForEach(sync.accounts.filter { $0.kind == .microsoft }) { account in
                     AccountRow(account: account)
                 }
-                TextField("Application (client) ID", text: $sync.microsoftClientID, prompt: Text("00000000-0000-0000-0000-000000000000"))
-                    .textContentType(.none)
-                connectButton(.microsoft, title: "Connect Microsoft Account…",
-                              isReady: MicrosoftGraphMapping.configuration(clientID: sync.microsoftClientID, bundleID: bundleID) != nil) {
+                connectButton(.microsoft, title: "Connect Microsoft Account…", isReady: sync.canConnectMicrosoft) {
                     try await sync.connectMicrosoft()
                 }
-                SetupGuide(title: "How to get a Microsoft client ID", link: URL(string: "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade")!,
-                           linkTitle: "Open Microsoft Entra", steps: [
-                    "In Microsoft Entra (Azure), open App registrations and choose New registration.",
-                    "Allow “Accounts in any organizational directory and personal Microsoft accounts”.",
-                    "Under Authentication, add the “iOS / macOS” platform with bundle ID \(bundleID).",
-                    "Under API permissions, add Microsoft Graph delegated permissions Calendars.ReadWrite and User.Read.",
-                    "Paste the Application (client) ID above, then connect."
-                ], copyValue: bundleID)
+                OwnRegistration(
+                    fieldTitle: "Application (client) ID", prompt: "00000000-0000-0000-0000-000000000000",
+                    clientID: $sync.microsoftClientID, hasBuiltIn: BuiltInRegistration.microsoftClientID != nil,
+                    warning: nil,
+                    steps: [
+                        "In Microsoft Entra (Azure), open App registrations and choose New registration.",
+                        "Allow “Accounts in any organizational directory and personal Microsoft accounts”.",
+                        "Under Authentication, add the “iOS / macOS” platform with bundle ID \(bundleID).",
+                        "Under API permissions, add the Microsoft Graph delegated permission Calendars.ReadWrite (LP needs nothing else).",
+                        "Paste the Application (client) ID above, then connect."
+                    ],
+                    links: [("Microsoft Entra", URL(string: "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade")!)],
+                    bundleID: bundleID)
             } header: {
                 Text("Microsoft Outlook")
             } footer: {
-                errorText(.microsoft)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Work or school accounts may need their organisation’s approval the first time.")
+                    errorText(.microsoft)
+                }
             }
 
             if !sync.calendars.isEmpty {
@@ -369,6 +428,9 @@ private struct AccountRow: View {
     let account: CalendarAccount
     @Environment(AppModel.self) private var app
     @State private var confirmingDisconnect = false
+    @State private var isRemovingPages = false
+    /// Shared pages that couldn't be removed from the account's Drive (offline, say).
+    @State private var pagesLeft: Int?
 
     var body: some View {
         let state = app.calendarSync.state(of: account)
@@ -384,12 +446,36 @@ private struct AccountRow: View {
                     .font(.system(size: 11.5))
             }
             Spacer()
+            if isRemovingPages { ProgressView().controlSize(.small) }
             Button("Disconnect") { confirmingDisconnect = true }
+                .disabled(isRemovingPages)
         }
         .confirmationDialog("Disconnect \(account.name)?", isPresented: $confirmingDisconnect) {
-            Button("Disconnect", role: .destructive) { app.calendarSync.disconnect(account) }
+            Button("Disconnect", role: .destructive) { disconnect() }
         } message: {
-            Text("Its events will no longer appear in LP. Nothing is deleted from the calendar itself.")
+            let pages = SharingServices.drivePageCount(of: account.id)
+            Text(pages == 0
+                 ? "Its events will no longer appear in LP. Nothing is deleted from the calendar itself."
+                 : "Its events will no longer appear in LP, and the \(pages == 1 ? "progress page" : "\(pages) progress pages") you shared from its Google Drive \(pages == 1 ? "is" : "are") deleted first, so \(pages == 1 ? "its link stops" : "their links stop") working. Nothing is deleted from the calendar itself.")
+        }
+        .confirmationDialog("Some shared pages couldn’t be removed", isPresented: Binding(get: { pagesLeft != nil }, set: { if !$0 { pagesLeft = nil } })) {
+            Button("Disconnect Anyway", role: .destructive) { disconnect(anyway: true) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let left = pagesLeft ?? 0
+            Text("\(left == 1 ? "One progress page" : "\(left) progress pages") couldn’t be deleted from \(account.name)’s Google Drive — you may be offline. Disconnecting anyway leaves \(left == 1 ? "it" : "them") there for you to delete in Drive; or cancel and try again when you’re online.")
+        }
+    }
+
+    /// Deletes the account's shared Drive pages first (while LP can still reach its Drive), then
+    /// disconnects — or asks, if some couldn't be deleted. All in `SharingServices.disconnect`, so
+    /// no page can be on its way meanwhile.
+    private func disconnect(anyway: Bool = false) {
+        isRemovingPages = SharingServices.hasDriveWork(of: account.id)
+        Task {
+            let left = await SharingServices.disconnect(account, anyway: anyway)
+            isRemovingPages = false
+            if left > 0, !anyway { pagesLeft = left }
         }
     }
 
@@ -410,34 +496,65 @@ private struct AccountRow: View {
     }
 }
 
-/// Step-by-step setup instructions that stay out of the way until asked for.
-private struct SetupGuide: View {
-    let title: String
-    let link: URL
-    let linkTitle: String
+/// Advanced: the person's own app registration instead of LP's — or the only way, in a copy of LP
+/// built without one — with how to make one. Open by default only when it's needed or in use.
+private struct OwnRegistration: View {
+    let fieldTitle: String
+    let prompt: String
+    @Binding var clientID: String
+    let hasBuiltIn: Bool
+    /// What changing it later means, said whether or not LP has a registration of its own.
+    let warning: String?
     let steps: [String]
-    let copyValue: String
+    let links: [(title: String, url: URL)]
+    let bundleID: String
+    @State private var isExpanded: Bool
+
+    init(fieldTitle: String, prompt: String, clientID: Binding<String>, hasBuiltIn: Bool, warning: String?,
+         steps: [String], links: [(title: String, url: URL)], bundleID: String) {
+        self.fieldTitle = fieldTitle
+        self.prompt = prompt
+        _clientID = clientID
+        self.hasBuiltIn = hasBuiltIn
+        self.warning = warning
+        self.steps = steps
+        self.links = links
+        self.bundleID = bundleID
+        _isExpanded = State(initialValue: !hasBuiltIn || !clientID.wrappedValue.isEmpty)
+    }
 
     var body: some View {
-        DisclosureGroup(title) {
-            VStack(alignment: .leading, spacing: 6) {
+        DisclosureGroup("Use Your Own Client ID", isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(hasBuiltIn ? "Optional — leave it empty to use LP’s own registration." : "This copy of LP has no registration of its own, so it needs yours:")
+                    .foregroundStyle(Color.lpInkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let warning {
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(Color.lpInkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                TextField(fieldTitle, text: $clientID, prompt: Text(prompt))
+                    .textContentType(.none)
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("\(index + 1).").monospacedDigit().foregroundStyle(.secondary)
+                        Text("\(index + 1).").monospacedDigit().foregroundStyle(Color.lpInkSecondary)
                         Text(step).fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                HStack {
-                    Link(linkTitle, destination: link)
+                HStack(spacing: 14) {
+                    ForEach(links, id: \.title) { link in
+                        Link(link.title, destination: link.url)
+                    }
                     Spacer()
                     Button("Copy Bundle ID") {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(copyValue, forType: .string)
+                        NSPasteboard.general.setString(bundleID, forType: .string)
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
-            .font(.system(size: 12))
+            .font(.lp(size: 12))
             .padding(.top, 4)
         }
     }

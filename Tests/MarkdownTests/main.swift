@@ -540,5 +540,35 @@ do {
     check(text == "T\nSome bold words.\nitem", "plain text extraction")
 }
 
+// MARK: - Link and image titles
+
+do {
+    // Quotes in a title used to gain a second escape each time the paragraph was written,
+    // which ended the title early and broke the link.
+    let source = #"See [the site](https://example.com "a \"quoted\" title") now."#
+    let parsed = runs(source)
+    check(parsed.first { $0.style.link != nil }?.style.link?.title == #"a "quoted" title"#, "a title is read without its escapes")
+    check(InlineSerializer.serialize(parsed) == source, "and written with them once: \(InlineSerializer.serialize(parsed))")
+    let single = InlineSerializer.serialize(runs(#"[x](https://example.com 'it\'s')"#))
+    check(runs(single).first?.style.link?.title == "it's", "a single-quoted title keeps its wording: \(single)")
+    check(InlineSerializer.serialize(runs(#"[x](u "C:\path")"#)) == #"[x](u "C:\path")"#, "a backslash that is no escape stays as it is")
+    let trailing = [InlineRun(text: "x", style: InlineStyle(link: LinkInfo(destination: "u", title: #"ends\"#)))]
+    let written = InlineSerializer.serialize(trailing)
+    check(runs(written).first?.style.link?.title == #"ends\"#, "a title ending in a backslash: \(written)")
+}
+exact(#"![A diagram](diagram.png "the \"before\" state")"# + "\n")
+
+// MARK: - Closing fences
+
+do {
+    // A fence-like line indented four columns is a line of code, not the end of the block.
+    let source = "~~~\n    ~~~\nsecret\n~~~\n"
+    let document = MarkdownParser.parse(source)
+    check(document.blocks.count == 1, "one code block: \(document.blocks.map(\.kind))")
+    check(document.blocks.first?.plainText == "    ~~~\nsecret", "the indented line is part of it: \(document.blocks.first?.plainText.debugDescription ?? "-")")
+    exact(source)
+    check(MarkdownParser.parse("```\ncode\n   ```\nafter\n").blocks.count == 2, "a closing fence may be indented up to three spaces")
+}
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

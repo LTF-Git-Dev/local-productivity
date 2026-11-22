@@ -155,30 +155,49 @@ struct BoardView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let sideBySide = proxy.size.width >= BoardLayout.sideBySideWidth
-            let panelBeside = showsProgress && sideBySide
-            HStack(spacing: 0) {
-                lists(width: proxy.size.width - (panelBeside ? BoardLayout.panelWidth + 1 : 0))
-                if panelBeside {
-                    Rectangle().fill(Color.lpHairline).frame(width: 1)
-                    BoardProgressPanel(store: store)
-                        .frame(width: BoardLayout.panelWidth)
-                        .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+        Group {
+            if let failure = store.readFailure {
+                ContentUnavailableView {
+                    Label("Couldn’t Open This Board", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text("\(failure) Nothing on it is changed until it can be read.")
+                } actions: {
+                    Button("Try Again") { app.retryBoard() }
+                }
+            } else {
+                GeometryReader { proxy in
+                    let sideBySide = proxy.size.width >= BoardLayout.sideBySideWidth
+                    let panelBeside = showsProgress && sideBySide
+                    HStack(spacing: 0) {
+                        lists(width: proxy.size.width - (panelBeside ? BoardLayout.panelWidth + 1 : 0))
+                        if panelBeside {
+                            Rectangle().fill(Color.lpHairline).frame(width: 1)
+                            BoardProgressPanel(store: store)
+                                .frame(width: BoardLayout.panelWidth)
+                                .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        // In a narrow window the panel floats over the board rather than squeezing it.
+                        if showsProgress, !sideBySide {
+                            BoardProgressPanel(store: store)
+                                .frame(width: min(BoardLayout.panelWidth, proxy.size.width - 32))
+                                .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusLarge, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLarge, style: .continuous).strokeBorder(Color.lpHairline))
+                                .shadow(color: .black.opacity(0.14), radius: 18, y: 6)
+                                .padding(12)
+                                .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+                        }
+                    }
                 }
             }
-            .overlay(alignment: .topTrailing) {
-                // In a narrow window the panel floats over the board rather than squeezing it.
-                if showsProgress, !sideBySide {
-                    BoardProgressPanel(store: store)
-                        .frame(width: min(BoardLayout.panelWidth, proxy.size.width - 32))
-                        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusLarge, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLarge, style: .continuous).strokeBorder(Color.lpHairline))
-                        .shadow(color: .black.opacity(0.14), radius: 18, y: 6)
-                        .padding(12)
-                        .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
-                }
-            }
+        }
+        // While a card is open its sheet shows the problem instead.
+        .alert("Couldn’t Save the Board", isPresented: Binding(get: { store.saveError != nil && store.openedCard == nil },
+                                                             set: { if !$0 { store.saveError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(store.saveError ?? "")
         }
         .background(Color.lpCanvas)
         .animation(.lpSmooth, value: showsProgress)
@@ -186,7 +205,10 @@ struct BoardView: View {
             // The board's own undo manager, so card edits stay undoable after the sheet closes.
             CardDetailView(store: store, cardID: open.id, undoManager: undoManager)
         }
-        .alert("Couldn’t Share", isPresented: Binding(get: { store.shareError != nil }, set: { if !$0 { store.shareError = nil } })) {
+        .alert("Couldn’t Share", isPresented: Binding(get: { store.shareError != nil }, set: { if !$0 { store.shareError = nil; store.shareErrorPage = nil } })) {
+            if let page = store.shareErrorPage {
+                Button("Open Page") { NSWorkspace.shared.open(page) }
+            }
             Button("OK", role: .cancel) {}
         } message: {
             Text(store.shareError ?? "")
@@ -324,7 +346,8 @@ private struct BoardHeader: View {
                         .font(.lp(size: 12.5, weight: .medium))
                         .foregroundStyle(Color(nsColor: .systemRed))
                 }
-                if store.share != nil {
+                // Only a page this Mac keeps up to date; one set up elsewhere is explained in the panel.
+                if store.shareIsTrusted {
                     Label("Shared", systemImage: "person.2.fill")
                         .font(.lp(size: 12.5, weight: .medium))
                         .foregroundStyle(Color.accentColor)
@@ -621,10 +644,11 @@ private struct LaneView: View {
             cancelAdd()
             return
         }
-        withAnimation(.lpQuick) {
-            _ = store.addCard(draft, toLane: lane.id, undoManager: undoManager)
+        let added = withAnimation(.lpQuick) {
+            store.addCard(draft, toLane: lane.id, undoManager: undoManager)
         }
-        draft = ""
+        // A card that couldn't be added keeps its text in the field.
+        if added != nil { draft = "" }
         isDraftFocused = true
     }
 

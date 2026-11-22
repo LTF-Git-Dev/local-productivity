@@ -22,6 +22,8 @@ nonisolated struct TaskItem: Identifiable, Hashable, Sendable {
     var isBoardCard = false
     /// The card's block ID, when the file has one.
     var cardID: String? = nil
+    /// The board's ID (`lp-board`), for a card on a board that has one.
+    var boardID: String? = nil
 
     var id: String { "\(path)#\(ordinal)" }
 }
@@ -50,16 +52,6 @@ nonisolated extension PageMeta {
         guard isDailyNote, let day else { return title }
         return day.date().formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
-}
-
-nonisolated struct SearchHit: Identifiable, Hashable, Sendable {
-    var path: String
-    var title: String
-    var icon: String?
-    var snippet: String
-    var isTitleMatch: Bool
-
-    var id: String { path }
 }
 
 actor WorkspaceIndex {
@@ -167,8 +159,9 @@ actor WorkspaceIndex {
 
     private nonisolated static func read(_ page: FileNode, root: URL) -> Entry {
         let url = root.appendingPathComponent(page.path)
-        let text = (try? Data(contentsOf: url)).map { String(decoding: $0.prefix(2_000_000), as: UTF8.self) } ?? ""
-        if BoardParser.isBoard(text) { return readBoard(page, text: text) }
+        let data = (try? Data(contentsOf: url)) ?? Data()
+        let text = String(decoding: data.prefix(2_000_000), as: UTF8.self)
+        if BoardParser.isBoard(head: data) { return readBoard(page, text: text) }
         let document = MarkdownParser.parse(text)
         let body = document.plainText
 
@@ -183,13 +176,9 @@ actor WorkspaceIndex {
             }
         }
 
-        var tasks: [TaskItem] = []
-        for block in document.blocks {
-            guard case .todo(let status, _) = block.kind else { continue }
-            let (text, due, time) = taskText(block.plainText)
-            guard !text.isEmpty else { continue }
-            tasks.append(TaskItem(path: page.path, ordinal: tasks.count, text: text, isDone: status != " ", due: due,
-                                  dueTime: due == nil ? nil : time))
+        let tasks = PageTasks.tasks(in: document).enumerated().map { ordinal, task in
+            TaskItem(path: page.path, ordinal: ordinal, text: task.text, isDone: task.isDone, due: task.due,
+                     dueTime: task.due == nil ? nil : task.time)
         }
 
         let meta = PageMeta(
@@ -211,6 +200,7 @@ actor WorkspaceIndex {
     /// they appear on Home and in the calendar.
     private static func readBoard(_ page: FileNode, text: String) -> Entry {
         let board = BoardParser.parse(text)
+        let boardID = board.boardID.flatMap { BoardIDSafety.isValid($0) ? $0 : nil }
         var tasks: [TaskItem] = []
         var ordinal = 0
         var body: [String] = []
@@ -223,7 +213,7 @@ actor WorkspaceIndex {
                 guard let due = card.due else { continue }
                 tasks.append(TaskItem(path: page.path, ordinal: ordinal, text: card.title.isEmpty ? "Untitled card" : card.title,
                                       isDone: card.isDone || lane.marksComplete, due: due, dueTime: CardText.dueTime(in: card.text),
-                                      isBoardCard: true, cardID: card.hasStoredID ? card.id : nil))
+                                      isBoardCard: true, cardID: card.hasStoredID ? card.id : nil, boardID: boardID))
             }
         }
         let progress = BoardProgress(board: board)
@@ -245,29 +235,6 @@ actor WorkspaceIndex {
             board: BoardSummary(board: board)
         )
         return Entry(meta: meta, body: joined)
-    }
-
-    /// Separates a task's wording from a due date written as `📅 2026-11-20` or `due: 2026-11-20`,
-    /// and from a time written right after the date (`📅 2026-11-20 14:00`).
-    static func taskText(_ raw: String) -> (text: String, due: Day?, time: TimeOfDay?) {
-        let line = raw.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? raw
-        for marker in ["📅", "due:", "due::", "@due"] {
-            guard let range = line.range(of: marker, options: .caseInsensitive) else { continue }
-            let tail = String(line[range.upperBound...])
-            guard let day = Day.first(in: String(tail.prefix(16))) else { continue }
-            var text = String(line[..<range.lowerBound])
-            var time: TimeOfDay? = nil
-            if let dateRange = tail.range(of: day.iso) {
-                var rest = tail[dateRange.upperBound...]
-                if let found = TimeOfDay.leading(in: rest) {
-                    time = found.time
-                    rest = found.rest
-                }
-                text += rest.trimmingCharacters(in: CharacterSet(charactersIn: ") "))
-            }
-            return (text.trimmingCharacters(in: .whitespaces), day, time)
-        }
-        return (line.trimmingCharacters(in: .whitespaces), nil, nil)
     }
 
     /// A couple of lines of readable text to preview the page with.

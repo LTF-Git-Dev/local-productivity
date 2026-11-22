@@ -21,6 +21,11 @@
 #if DEBUG
 import AppKit
 
+extension Notification.Name {
+    /// Drives the open card sheet from the `card-sheet:` step.
+    static let lpHarnessCardSheet = Notification.Name("LPHarnessCardSheet")
+}
+
 enum SnapshotHarness {
 
     private static let environment = ProcessInfo.processInfo.environment
@@ -34,6 +39,10 @@ enum SnapshotHarness {
 
     /// Set by the root view, which is where SwiftUI hands out the action that opens Settings.
     static var openSettings: (() -> Void)?
+    /// A reminder kept by `reminder-keep:`, as if its notification had already been delivered.
+    private static var keptReminder: PlannedReminder?
+    /// A Share Progress started by `share-start`, for `share-wait`.
+    @MainActor private static var sharing: Task<Void, Never>?
 
     private static var requestedSize: NSSize {
         let parts = (environment["LP_SNAPSHOT_SIZE"] ?? "1280x800").split(separator: "x").compactMap { Double($0) }
@@ -168,6 +177,20 @@ enum SnapshotHarness {
             guard let textView else { return }
             let range = (textView.storage.string as NSString).range(of: argument)
             if range.location != NSNotFound { textView.toggleTodo(at: range.location) }
+        case "back":
+            app.goBack()
+            await settle(400)
+        case "forward":
+            app.goForward()
+            await settle(400)
+        case "toggle-task":
+            // Ticks a task off the way Home does: from what the index knows about it.
+            guard let workspace = app.workspace,
+                  let task = workspace.meta.values.flatMap(\.tasks).first(where: { $0.text == argument }) else {
+                print("toggle-task: no task"); return
+            }
+            app.toggleTask(task, in: workspace)
+            await settle(300)
         case "write":
             // Changes a file behind the app's back, the way another editor or a sync service would.
             guard let workspace = app.workspace, let split = argument.firstIndex(of: "=") else { return }
@@ -181,6 +204,17 @@ enum SnapshotHarness {
             try? FileManager.default.removeItem(at: workspace.url(for: argument))
         case "state":
             print("route=\(app.route) board=\(app.boardStore?.path ?? "nil") session=\(app.session?.path ?? "nil") pages=\(app.workspace?.pages.count ?? 0) status=\(String(describing: app.session?.status))")
+            if let store = app.boardStore {
+                print("share=\(store.share == nil ? "none" : store.shareIsTrusted ? "trusted" : "set up elsewhere") boardID=\(store.log.boardID)")
+                if store.openedCard != nil || store.saveError != nil {
+                    print("card-sheet=\(store.openedCard == nil ? "closed" : "open") saveError=\(store.saveError ?? "-")")
+                }
+                if let problem = store.shareError { print("shareError=\(problem)") }
+                if let page = store.shareErrorPage { print("shareErrorPage=\(page.absoluteString)") }
+            }
+            if let alert = app.alert {
+                print("alert=\(alert.title) | \(alert.message) | file=\(alert.file?.lastPathComponent ?? "-")")
+            }
         case "cat":
             // Prints the file of the open page or board as it is on disk.
             guard let workspace = app.workspace, let path = app.session?.path ?? app.boardStore?.path else { return }
@@ -294,6 +328,18 @@ enum SnapshotHarness {
             }
             store.openedCard = BoardStore.OpenedCard(id: card.id)
             await settle(600)
+        case "card-sheet":
+            // In the open card sheet: "notes=<text>" types the notes and presses Done; "done" presses
+            // Done; "delete" picks Delete — through the sheet itself, so its checks run as they do
+            // for a person. Anything else is ignored.
+            guard argument.hasPrefix("notes=") || argument == "done" || argument == "delete" else {
+                print("card-sheet: notes=<text> | done | delete"); return
+            }
+            let request = argument.hasPrefix("notes=")
+                ? ["action": "notes", "text": String(argument.dropFirst(6)).replacingOccurrences(of: "\\n", with: "\n")]
+                : ["action": argument]
+            NotificationCenter.default.post(name: .lpHarnessCardSheet, object: request)
+            await settle(600)
         case "board-close-card":
             app.boardStore?.openedCard = nil
             await settle(300)
@@ -324,6 +370,166 @@ enum SnapshotHarness {
             if parts.count > 1 { write(parts[1], window: window) }
             post(.leftMouseUp, end)
             await settle(600)
+        case "scroll-at":
+            // "x,y=dy": scrolls the scroll view under that point (window points from the top left) down
+            // by dy points — for SwiftUI scroll views the editor's `scroll:` doesn't reach.
+            let parts = argument.split(separator: "=").map(String.init)
+            let xy = parts.first?.split(separator: ",").compactMap { Double($0) } ?? []
+            guard parts.count == 2, xy.count == 2, let dy = Double(parts[1]), let content = window.contentView else { return }
+            var view = content.hitTest(NSPoint(x: xy[0], y: content.bounds.height - xy[1]))
+            while let candidate = view, !(candidate is NSScrollView) { view = candidate.superview }
+            guard let scrollView = view as? NSScrollView else { print("scroll-at: no scroll view"); return }
+            let clip = scrollView.contentView
+            let limit = max(0, (scrollView.documentView?.frame.height ?? 0) - clip.bounds.height)
+            let target = clip.isFlipped ? clip.bounds.origin.y + dy : clip.bounds.origin.y - dy
+            clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: min(max(0, target), limit)))
+            scrollView.reflectScrolledClipView(clip)
+            await settle(400)
+        case "rename":
+            // "path=New title", the way renaming in the sidebar does it.
+            let parts = argument.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { return }
+            app.rename(parts[0], to: parts[1])
+            await settle(600)
+        case "open-markdown":
+            // What a board's "Open as Markdown" does: the file in the page editor.
+            app.show(.page(argument))
+            await settle(900)
+        case "ready-to-quit":
+            // What quitting asks first, without quitting: prints whether LP may go and what it says.
+            let (ready, notice) = app.readyToQuit()
+            print("ready-to-quit=\(ready) notice=\(notice.map { "\($0.title) | \($0.file?.lastPathComponent ?? "-")" } ?? "-")")
+        case "reminder-keep":
+            // Keeps a planned reminder as it is now, like a notification already on screen.
+            app.updateReminders()
+            keptReminder = app.reminders.plan.first { $0.title == argument }
+            print(keptReminder == nil ? "reminder-keep: nothing planned called “\(argument)”" : "reminder-keep: \(argument)")
+        case "reminder-kept":
+            // Acts on the reminder kept by reminder-keep: — what tapping an old notification does.
+            let actions: [String: ReminderResponse.Action] = ["open": .open, "done": .complete, "hour": .snoozeHour, "tomorrow": .snoozeTomorrow]
+            guard let planned = keptReminder, let action = actions[argument] else { print("reminder-kept: nothing kept"); return }
+            app.handleReminder(ReminderResponse(action: action, kind: planned.kind, title: planned.title,
+                                                subtitle: planned.subtitle, body: planned.body, info: planned.info))
+            await settle(1500)
+        case "move-race":
+            // "path=text": the next move appends text to that file between its checks and its writes,
+            // as another app (Obsidian, sync) could.
+            let parts = argument.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let workspace = app.workspace else { return }
+            let target = workspace.url(for: parts[0])
+            let addition = parts[1].replacingOccurrences(of: "\\n", with: "\n")
+            Workspace.betweenMoveChecksAndWrites = {
+                Workspace.betweenMoveChecksAndWrites = nil
+                if let handle = try? FileHandle(forWritingTo: target) {
+                    handle.seekToEndOfFile()
+                    handle.write(Data(addition.utf8))
+                    try? handle.close()
+                }
+            }
+        case "calendar-state":
+            // Each account's sync state, and how often the demo calendar was asked for events.
+            for account in app.calendarSync.accounts {
+                print("account \(account.name): \(app.calendarSync.state(of: account)) · demo fetches: \(DemoCalendarProvider.fetches)")
+            }
+        case "calendar-sync":
+            // What the calendar's Sync button does.
+            app.calendarSync.syncNow()
+            await settle(300)
+        case "move-file":
+            // "path=folder" moves a page, board or folder into a folder, the way dragging in the sidebar does.
+            let parts = argument.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { return }
+            do {
+                print("move-file → \(try app.workspace?.move(parts[0], into: parts[1]) ?? "nil")")
+            } catch {
+                print("move-file failed: \(error.localizedDescription)")
+            }
+            await settle(600)
+        case "duplicate-file":
+            // Duplicates a page, board or folder the way the sidebar's Duplicate does.
+            do {
+                let copy = try app.workspace?.duplicate(argument)
+                print("duplicate-file → \(copy ?? "nil")")
+            } catch {
+                print("duplicate-file failed: \(error.localizedDescription)")
+            }
+            await settle(600)
+        case "share-trust":
+            // What "Keep It Updated From Here" does, without needing a GitHub token.
+            app.boardStore?.trustShare()
+            await settle(400)
+        case "share-forget":
+            app.boardStore?.forgetShare()
+            await settle(400)
+        case "demo-drive":
+            // "demo-drive" lets LP use the demo account's Drive (kept in memory); options, comma-
+            // separated: "fail-deletes=<n>" (the next n deletions fail, as if offline),
+            // "fail-publishes=<n>" (letting the next n pages be seen fails with "slow down"),
+            // "slow=<seconds>" (uploads and updates take that long).
+            DemoDriveBackend.isOn = true
+            for option in argument.split(separator: ",") {
+                let pair = option.split(separator: "=", maxSplits: 1).map(String.init)
+                guard pair.count == 2, let value = Double(pair[1]) else { continue }
+                switch pair[0] {
+                case "fail-deletes": DemoDriveBackend.shared.failingDeletes = Int(value)
+                case "fail-publishes": DemoDriveBackend.shared.failingPublishes = Int(value)
+                case "slow": DemoDriveBackend.shared.delay = value
+                default: print("demo-drive: unknown option \(pair[0])")
+                }
+            }
+            await settle(200)
+        case "share-to":
+            // What the panel's Share Progress does: "share-to:gist" or "share-to:drive" (the demo account's Drive).
+            await app.boardStore?.publish(to: argument == "drive" ? .googleDrive(account: DemoCalendarProvider.accountID) : .gist)
+            await settle(300)
+        case "share-start":
+            // Share Progress without waiting for it ("share-wait" waits), to do something meanwhile.
+            let store = app.boardStore
+            let destination: ShareDestination = argument == "drive" ? .googleDrive(account: DemoCalendarProvider.accountID) : .gist
+            sharing = Task { await store?.publish(to: destination) }
+            await settle(100)
+        case "share-update-start":
+            // Update Now without waiting for it ("share-wait" waits).
+            let store = app.boardStore
+            sharing = Task { await store?.updateSharedPage() }
+            await settle(100)
+        case "share-wait":
+            await sharing?.value
+            sharing = nil
+            await settle(300)
+        case "share-elsewhere":
+            // As if the board's page had been set up on another Mac: this Mac has neither the
+            // permission for it nor the page on its list.
+            guard let store = app.boardStore, let share = store.log.share else { print("share-elsewhere: not shared"); return }
+            store.workspace.revokeShare(path: store.path, board: store.log.boardID, page: share.grantKey)
+            SharingServices.unlist(share)
+            await settle(300)
+        case "drive-pages":
+            // The demo Drive's pages (private ones marked), and how many LP keeps track of for the demo account.
+            print("drive pages=\(DemoDriveBackend.shared.pages.count) tracked=\(SharingServices.drivePageCount(of: DemoCalendarProvider.accountID)) "
+                  + DemoDriveBackend.shared.pages.values.map { $0.name + ($0.isPublic ? "" : " (private)") }.sorted().joined(separator: " | "))
+            // "drive-pages:<text>": whether each page's content has that text (did an update reach it?).
+            if !argument.isEmpty {
+                print("drive pages containing \"\(argument)\": \(DemoDriveBackend.shared.pages.values.filter { $0.html.contains(argument) }.count)")
+            }
+        case "calendar-disconnect":
+            // What Settings → Calendars → Disconnect does for the demo account: its Drive pages are
+            // deleted first (after any still being made); "calendar-disconnect:anyway" is
+            // "Disconnect Anyway", when some couldn't be.
+            guard let account = app.calendarSync.accounts.first(where: { $0.id == DemoCalendarProvider.accountID }) else { print("no demo account"); return }
+            let left = await SharingServices.disconnect(account, anyway: argument == "anyway")
+            print("pages left=\(left)")
+            if !app.calendarSync.accounts.contains(where: { $0.id == account.id }) { print("disconnected") }
+            await settle(300)
+        case "share-update":
+            // What "Update Now" does. Harness runs have no GitHub token, so a request LP decides to
+            // send stops at "Add a GitHub token" (shown by `state` as shareError).
+            await app.boardStore?.updateSharedPage()
+            await settle(200)
+        case "share-stop":
+            // What "Stop Sharing" does (same: no request can reach GitHub from the harness).
+            await app.boardStore?.stopSharing()
+            await settle(200)
         case "board-undo":
             window.undoManager?.undo()
             await endEvent(in: window)
@@ -397,11 +603,31 @@ enum SnapshotHarness {
             if let tab = SettingsView.Tab(rawValue: argument) { SettingsView.select(tab) }
             openSettings?()
             await settle(900)
+        case "update-demo":
+            // The Software Update window in a state: available (default), checking, uptodate,
+            // downloading, installed, failed — then shot-other captures it.
+            app.updater.showDemo(argument)
+            await settle(900)
         case "shot-other":
             // Captures the sheet attached to the main window, or else another visible window (Settings).
             await settle()
             let other = window.attachedSheet ?? NSApp.windows.first { $0 !== window && $0.isVisible && $0.frame.width > 200 }
             if let other { write(argument.isEmpty ? "other" : argument, window: other) } else { print("shot-other: no other window") }
+        case "scroll-other":
+            // Scrolls the other window (Settings) down by that many points, to capture what's below.
+            let other = NSApp.windows.first { $0 !== window && $0.isVisible && $0.frame.width > 200 }
+            func scrollViews(in view: NSView) -> [NSScrollView] {
+                ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
+            }
+            guard let content = other?.contentView, let dy = Double(argument),
+                  let scrollView = scrollViews(in: content).max(by: { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) })
+            else { print("scroll-other: nothing to scroll"); return }
+            let clip = scrollView.contentView
+            let limit = max(0, (scrollView.documentView?.frame.height ?? 0) - clip.bounds.height)
+            let target = clip.isFlipped ? clip.bounds.origin.y + dy : clip.bounds.origin.y - dy
+            clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: min(max(0, target), limit)))
+            scrollView.reflectScrolledClipView(clip)
+            await settle(400)
         case "palette":
             app.paletteSeed = argument
             app.isPaletteVisible = true

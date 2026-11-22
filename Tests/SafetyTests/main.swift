@@ -67,5 +67,38 @@ check(!BoardIDSafety.isValid(""), "empty is refused")
 check(!BoardIDSafety.isValid(String(repeating: "a", count: 65)), "very long is refused")
 check(!BoardIDSafety.isValid("café"), "only plain ASCII")
 
+// MARK: - Writing through links
+
+do {
+    let manager = FileManager.default
+    let base = manager.temporaryDirectory.appendingPathComponent("lp-safety-\(UUID().uuidString)")
+    let root = base.appendingPathComponent("vault")
+    let outside = base.appendingPathComponent("elsewhere")
+    try? manager.createDirectory(at: root.appendingPathComponent("Notes"), withIntermediateDirectories: true)
+    try? manager.createDirectory(at: outside, withIntermediateDirectories: true)
+    try? manager.createSymbolicLink(at: root.appendingPathComponent("Linked"), withDestinationURL: outside)
+    defer { try? manager.removeItem(at: base) }
+
+    check(PathSafety.resolvesInside(root.appendingPathComponent("Notes/New page.md"), root: root), "a new page in a folder of the workspace")
+    check(PathSafety.resolvesInside(root.appendingPathComponent("New/Deeper/page.md"), root: root), "in folders that don't exist yet")
+    check(PathSafety.resolvesInside(root, root: root), "the workspace itself")
+    check(!PathSafety.resolvesInside(root.appendingPathComponent("Linked/page.md"), root: root),
+          "a folder that is a link to somewhere else can't take a new page out of the workspace")
+    check(!PathSafety.resolvesInside(root.appendingPathComponent("Linked/New/page.md"), root: root), "nor a folder made inside it")
+    check(!PathSafety.resolvesInside(base.appendingPathComponent("page.md"), root: root), "outside altogether")
+}
+
+// MARK: - Sharing grant keys
+
+do {
+    let plain = ShareGrantKey.make(path: "Projects/Launch.md", board: "blaunch1", page: "aa5a315d61ae9438b18d")
+    check(ShareGrantKey.parts(of: plain).map { [$0.path, $0.board, $0.page] } == ["Projects/Launch.md", "blaunch1", "aa5a315d61ae9438b18d"],
+          "a grant key reads back as path, board and gist")
+    let odd = ShareGrantKey.make(path: "A\u{1F}B.md", board: "bodd1", page: "bb5a315d61ae9438b18d")
+    check(ShareGrantKey.parts(of: odd).map { [$0.path, $0.board, $0.page] } == ["A\u{1F}B.md", "bodd1", "bb5a315d61ae9438b18d"],
+          "a path containing the separator is kept whole, and the board is still the board")
+    check(ShareGrantKey.parts(of: "no separators") == nil, "a key without its parts is nothing")
+}
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

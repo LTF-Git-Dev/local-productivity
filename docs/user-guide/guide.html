@@ -175,6 +175,7 @@
     <li>Every page is a <code>.md</code> file. Folders in LP are folders on your Mac.</li>
     <li>The same folder keeps working in <strong>Obsidian</strong>, in any text editor, in iCloud Drive or in Git.</li>
     <li>Opening a note never changes it. When you edit, only what you changed is rewritten — the rest of the file stays exactly as it was.</li>
+    <li>Your edits are never lost: if a page can't be saved, LP keeps a copy of your edits and tells you where.</li>
     <li>Deleting moves files to the Trash, so nothing is lost by accident.</li>
   </ul>
 
@@ -192,12 +193,23 @@
 
   <h2>Install LP</h2>
   <ol class="steps">
-    <li>Download <code>LP-1.0.0.zip</code> from the newest release on LP's <strong>Releases</strong> page: <span class="ui keys">github.com/LTF-Git-Dev/local-productivity/releases</span></li>
+    <li>Download the app — <code>LP-1.0.1.zip</code>, for example — from the release marked <strong>Latest</strong> on LP's <strong>Releases</strong> page: <span class="ui keys">github.com/LTF-Git-Dev/local-productivity/releases</span></li>
     <li>Double-click the zip to unpack it, then drag <strong>LP</strong> into your <strong>Applications</strong> folder.</li>
     <li>Open LP from Applications or Launchpad.</li>
   </ol>
   <div class="warn"><strong>If macOS says LP can't be opened</strong>LP is not distributed through the App Store, so the first time macOS may refuse to open it. Open <span class="ui">System Settings › Privacy &amp; Security</span>, scroll to the message about LP and click <span class="ui">Open Anyway</span>. You only need to do this once.</div>
+  <p>Releases marked <strong>Pre-release</strong> are betas: new versions published for testing before they become official. Install one only if you want to help try it out.</p>
   <p>You can also build LP yourself: open <code>Local Productivity.xcodeproj</code> in Xcode 27 and press <span class="keys"><kbd>⌘</kbd> <kbd>R</kbd></span>.</p>
+
+  <h2>Keep LP up to date</h2>
+  <p>LP looks for a new version on its Releases page once a day. When there is one, it shows what's new and asks you first: click <span class="ui">Install and Restart</span>, and LP downloads it, puts it in place of the old one and opens again — your notes and settings stay as they are. <span class="ui">Later</span> asks again tomorrow; <span class="ui">Skip This Version</span> waits for the next one.</p>
+  <figure class="narrow"><img src="images/update.jpg" alt="The Software Update window"><figcaption>A new version, with what's new in it.</figcaption></figure>
+  <ul>
+    <li>Check any time with <span class="ui">LP › Check for Updates…</span>.</li>
+    <li>In <span class="ui">Settings › General › Updates</span> you can turn the daily check off, or choose <span class="ui">Include beta versions</span> to get betas too.</li>
+    <li>LP installs only updates signed by its maintainer's release key, and checks the download byte for byte before using it.</li>
+    <li>Keep LP in your <strong>Applications</strong> folder. If you opened it straight from Downloads, macOS runs a temporary copy that can't be updated: move LP to Applications and open it from there.</li>
+  </ul>
 
   <h2>Choose your workspace</h2>
   <p>The first time LP opens, it asks for a folder. Click <span class="ui">Choose a Folder…</span> and pick any folder — an Obsidian vault, a folder of notes, or a new empty folder. LP remembers it, and opens it again next time.</p>
@@ -319,8 +331,10 @@
     <div>
       <p>Open <span class="ui">Settings › Calendars</span>:</p>
       <ul>
-        <li><strong>Apple Calendar</strong> — click <span class="ui">Connect Apple Calendar…</span> and allow access. This includes iCloud and any Google, Exchange or other account you've added in <span class="ui">System Settings › Internet Accounts</span>.</li>
-        <li><strong>Google Calendar</strong> and <strong>Microsoft Outlook</strong> can also be connected directly. Each needs a free <em>client ID</em> of your own; the step-by-step instructions are in the same settings tab (<span class="ui">How to get a … client ID</span>). LP signs in through the system's secure sign-in sheet and keeps the tokens in your Keychain.</li>
+        <li><strong>Apple Calendar</strong> — click <span class="ui">Connect Apple Calendar…</span> and allow access. This includes iCloud and any Google, Exchange or other account you've added in <span class="ui">System Settings › Internet Accounts</span> (<span class="ui">Add an Account in System Settings…</span> opens it) — no app registration needed.</li>
+        <li><strong>Google Calendar</strong> — one-click <span class="ui">Connect Google Account…</span> is coming soon: Google is still reviewing LP. Until then, add the account in <span class="ui">System Settings › Internet Accounts</span> and connect Apple Calendar, or use your own client ID (it also lets you share boards to Google Drive). LP signs in through the system's secure sign-in sheet and keeps the sign-in in your Keychain.</li>
+        <li><strong>Microsoft Outlook</strong> — LP's own Microsoft registration comes in a later version. Until then, add the account in <span class="ui">System Settings › Internet Accounts</span> and connect Apple Calendar, or use your own client ID (<span class="ui">Use Your Own Client ID</span> has the steps). Work or school accounts may need their organisation's approval.</li>
+        <li><strong>Your own registration</strong> (optional) — <span class="ui">Use Your Own Client ID</span> has the steps; for Google, a free <em>Personal mode</em> project that only your account can use.</li>
       </ul>
     </div>
     <figure><img src="images/settings-calendars.jpg" alt="Calendar settings"><figcaption>Settings › Calendars.</figcaption></figure>
@@ -377,6 +391,7 @@
         <li><strong>Notes</strong> in Markdown. Lines starting with <code>- [ ]</code> become a checklist, and the card shows its progress (for example 2/3).</li>
         <li>••• at the bottom left: <span class="ui">Archive</span> or <span class="ui">Delete</span>.</li>
       </ul>
+      <p>Only what you change in the sheet is saved, on top of the card as it is now — so notes someone changed in Obsidian meanwhile are kept. If the card can't be saved (for example, it was deleted elsewhere), the sheet says why and keeps what you typed.</p>
     </div>
     <figure><img src="images/card.jpg" alt="Card details"><figcaption>A card's details and history.</figcaption></figure>
   </div>
@@ -384,7 +399,7 @@
   <h2>Progress</h2>
   <p>Click the chart button in the toolbar to open the progress panel: percent done, cards per list, overdue and due-soon cards, what got done this week, the average time to finish a card, a chart over time and a history of every change — including changes made in another app while LP was closed.</p>
   <figure><img src="images/progress.jpg" alt="The progress panel"><figcaption>The progress panel beside the board. In a narrow window it floats over the lists.</figcaption></figure>
-  <div class="note"><strong>Boards are files too</strong>A board is a Markdown file in the format of Obsidian's Kanban plugin, so it opens in Obsidian as well. Its history is kept in a hidden <code>.lp</code> folder in your workspace.</div>
+  <div class="note"><strong>Boards are files too</strong>A board is a Markdown file in the format of Obsidian's Kanban plugin, so it opens in Obsidian as well. Its history is kept in a hidden <code>.lp</code> folder in your workspace. Rename or move a board in LP and its history and shared page go with it (LP first adds one line, the board's ID, to the file). A board that has that line keeps its history when moved in Finder or Obsidian too, though its shared page then asks once to <span class="ui">Keep It Updated From Here</span> again. A copy of a board starts a history of its own.</div>
 </section>
 
 <!-- 7 -->
@@ -393,28 +408,57 @@
   <h1>Sharing a board</h1>
   <p class="lead">Share how a project is going as a live, read-only web page. Anyone with the link can open it on any device, without an account.</p>
 
-  <p>The shared page shows the board's lists, card titles, due dates, tags, progress and recent activity. <strong>Card notes are never shared.</strong> The page is published as a <em>secret</em> GitHub Gist: it isn't listed or searchable, and can only be found with its link.</p>
+  <p>The shared page shows the board's lists, card titles, due dates, tags, progress and recent activity. <strong>Card notes are never shared.</strong> It is published through your own account — as a Google Doc in your Google Drive, or as a <em>secret</em> gist on GitHub. Either way it isn't listed or searchable, and can only be found with its link.</p>
 
-  <h2>Once: connect GitHub</h2>
+  <h2>Once: choose where pages go</h2>
   <div class="aside">
     <div>
+      <p><strong>Google Drive</strong> — a Google Doc in your own Drive:</p>
       <ol class="steps">
-        <li>On GitHub (a free account is enough), create a token that can only make gists: <span class="ui">github.com/settings/tokens/new?scopes=gist</span>. The <span class="ui">Create a Token on GitHub</span> link in LP opens it for you.</li>
-        <li>In LP, open <span class="ui">Settings › Sharing</span>, paste the token and click <span class="ui">Connect</span>. LP checks it and keeps it in your Keychain.</li>
+        <li>Connect your Google account in <span class="ui">Settings › Calendars</span> (chapter 5). (With your own client ID, also turn on the <strong>Google Drive API</strong> in its project.)</li>
+        <li>In <span class="ui">Settings › Sharing</span>, click <span class="ui">Allow Google Drive…</span> next to the account, and keep the Drive permission ticked on Google's page. LP can reach only the files it creates.</li>
       </ol>
+      <p><strong>GitHub</strong> — a secret gist: create a token that can only make gists (<span class="ui">Create a Token on GitHub</span> opens the page) and paste it in <span class="ui">Settings › Sharing</span>.</p>
     </div>
-    <figure><img src="images/settings-sharing.jpg" alt="Sharing settings"><figcaption>Settings › Sharing.</figcaption></figure>
+    <figure><img src="images/settings-sharing.jpg" alt="Sharing settings with Google Drive allowed for an account, and GitHub"><figcaption>Settings › Sharing: Google Drive allowed for one account; GitHub not connected.</figcaption></figure>
   </div>
 
   <div class="keep">
   <h2>Share a board</h2>
   <ol class="steps">
     <li>Open the board and choose <span class="ui">••• › Share Progress…</span> (or click the chart button).</li>
-    <li>In the progress panel, under <span class="ui">Share</span>, click <span class="ui">Share Progress</span>.</li>
+    <li>In the progress panel, under <span class="ui">Share</span>, click <span class="ui">Share Progress</span>. If both Google Drive and GitHub are set up, choose where.</li>
     <li>Click <span class="ui">Copy Link</span> and send the link by Messages, email or Slack.</li>
   </ol>
   </div>
   <p>The page updates by itself as the board changes (<span class="ui">Keep up to date automatically</span>), or click <span class="ui">Update Now</span>. <span class="ui">Stop Sharing</span> deletes the page, and its link stops working.</p>
+
+  <h2>Is it private? Does it cost anything?</h2>
+  <ul>
+    <li><strong>It's free.</strong> The page is a Google Doc in your own Drive, or a <em>secret gist</em> on your own GitHub account — free accounts included. LP has no server and charges nothing.</li>
+    <li><strong>Who can see it:</strong> anyone with the link, and anyone they pass it to. It isn't listed or searchable, but it isn't password-protected either — share the link like you would a document.</li>
+    <li><strong>What they see:</strong> the board's title, lists, card titles, due dates, tags, progress and recent activity. A gist also shows your GitHub username. LP doesn't put your name or email on a Google Doc, but Google may show viewers which Google account owns it. <strong>Card notes are never on it.</strong></li>
+    <li><strong>Earlier versions:</strong> a gist's history stays on GitHub until you click <span class="ui">Stop Sharing</span>, which deletes the page and its history. A Google Doc keeps its version history in your Drive, where only you can see it; <span class="ui">Stop Sharing</span> deletes the Doc.</li>
+    <li><strong>For the people you share with:</strong> no account or app is needed; LP doesn't track them. Google or GitHub hosts the page and sees their visit like any website does.</li>
+    <li><strong>Copies:</strong> anyone who opened the page can keep a copy — and someone signed in to GitHub can comment on a gist or <em>fork</em> it (make their own copy). <span class="ui">Stop Sharing</span> removes your page, not copies others made.</li>
+    <li><strong>Your accounts stay yours:</strong> LP's connection to Google or GitHub is kept in your Mac's Keychain and sent only to that service, over HTTPS — never to the people who view the page, or anyone else. In your Drive, LP can reach only the files it created. Other people who want to share <em>their</em> boards connect their own accounts; their pages are theirs.</li>
+    <li><strong>Ending it:</strong> disconnecting a Google account in <span class="ui">Settings › Calendars</span> first deletes the Docs this Mac shared from that Drive. <span class="ui">Disconnect</span> GitHub in <span class="ui">Settings › Sharing</span>, and delete the token on GitHub (<span class="ui">Manage the Token on GitHub</span>).</li>
+    <li>Rather not show who you are? Share from a separate free Google or GitHub account, used just for sharing.</li>
+    <li>Want nothing online at all? <span class="ui">Export Report…</span> saves the same page as a file you send yourself.</li>
+  </ul>
+
+  <h2>A page shared from somewhere else</h2>
+  <div class="aside">
+    <div>
+      <p>LP only updates pages that this Mac published. If a board's page was shared from another Mac, from LP 1.0.0, or by whoever gave you the folder, the progress panel says it was <em>set up somewhere else</em> and changes nothing until you choose:</p>
+      <ul>
+        <li><span class="ui">Keep It Updated From Here</span> — this Mac keeps the page up to date from now on.</li>
+        <li><span class="ui">Forget It</span> — LP forgets about the page without touching it; you can share the board again.</li>
+      </ul>
+      <p>A copy of a board never updates the original's page.</p>
+    </div>
+    <figure><img src="images/share-elsewhere.jpg" alt="A shared page set up somewhere else"><figcaption>Until GitHub (or the page's Google account) is connected on this Mac, LP says so under the buttons.</figcaption></figure>
+  </div>
 
   <h2>Other ways to share</h2>
   <ul>
@@ -523,7 +567,10 @@
 
   <h2>How LP saves</h2>
   <ul>
-    <li><strong>Nothing is written unless you edit.</strong> Opening a note or a board never changes it.</li>
+    <li><strong>Nothing is written unless you edit.</strong> Opening a note or a board never changes it. (Renaming, moving or sharing a board adds one line — its ID — so its history and shared page stay with it.)</li>
+    <li><strong>Your edits are never lost.</strong> If a page can't be saved — the file was locked, say, or the disk is full — LP keeps your edits as a copy in its <em>Recovered</em> folder when you leave the page, switch workspace or quit, and an alert shows where (<span class="ui">Show in Finder</span>). If even that isn't possible, the page stays open.</li>
+    <li><strong>Another app's changes are never overwritten.</strong> If another app changed a page while you were editing it in LP, LP keeps that version as a copy before saving yours, and tells you.</li>
+    <li><strong>Pages LP can't read are left alone.</strong> LP says it couldn't open the page, with <span class="ui">Try Again</span>, and never writes over it. The same goes for boards.</li>
     <li><strong>Untouched text keeps its exact bytes</strong> — spacing, list numbers, line endings, encoding.</li>
     <li><strong>Nothing is dropped.</strong> Markdown that LP doesn't display (HTML, math, footnotes, comments) is kept as it is.</li>
     <li><strong>Saves are safe:</strong> files are replaced in one step, keeping their creation dates and Finder tags.</li>
@@ -539,8 +586,23 @@
     <tr><td>Notes and boards</td><td><code>.md</code> files in your workspace folder</td></tr>
     <tr><td>Images you paste</td><td>The workspace's attachments folder</td></tr>
     <tr><td>Board history</td><td>A hidden <code>.lp</code> folder in your workspace</td></tr>
+    <tr><td>Recovered copies of edits</td><td>LP's own folder on your Mac, never your workspace — the alert's <span class="ui">Show in Finder</span> opens it</td></tr>
+    <tr><td>Which shared pages this Mac updates</td><td>LP's settings on this Mac</td></tr>
     <tr><td>Calendar and sharing tokens</td><td>Your Mac's Keychain</td></tr>
+    <tr><td>Events from Google and Microsoft</td><td>LP's own folder on your Mac (Apple Calendar's stay in macOS)</td></tr>
   </table>
+
+  <h2>Your privacy</h2>
+  <p>LP has <strong>no servers, no accounts, no analytics and no tracking</strong> — nobody, including the people who make LP, receives your notes or anything about how you use it. LP goes online only for what you use:</p>
+  <ul>
+    <li><strong>Apple Calendar</strong> is read from your Mac; LP sends nothing and keeps no copy in its calendar cache.</li>
+    <li><strong>Google and Microsoft</strong> are reached directly from your Mac (Google through your own registration under Advanced until Google finishes reviewing LP's, then LP's; Microsoft through your own registration for now), with the smallest permissions that work — for Google, your list of calendars and their events, not the right to change who they're shared with; for Microsoft, your calendars, not your profile. LP asks for a private sign-in window, which keeps no cookies when Safari is your default browser.</li>
+    <li><strong>GitHub</strong> is used when you share a board, and once a day to look for a new version of LP (only LP's version number is sent; turn it off in <span class="ui">Settings › General › Updates</span>).</li>
+  </ul>
+  <p><span class="ui">Disconnect</span> in <span class="ui">Settings › Calendars</span> removes an account from LP, and for Google also asks Google to end LP's access. To be thorough, check your account's list of connected apps too (Google Account › Third-party connections; Microsoft account › Apps and services). The details are in the Privacy Policy and on the Connected Accounts page of LP's website, <span class="ui keys">ltf-git-dev.github.io</span>.</p>
+
+  <h2>Open source and legal</h2>
+  <p>LP is free, open-source software under the <strong>MIT License</strong> (© 2026 LTF-Git-Dev). The repository has its <code>LICENSE</code>, Privacy Policy (<code>PRIVACY.md</code>), Terms of Use (<code>TERMS.md</code>), Cookie Policy (<code>COOKIES.md</code> — LP uses none), accessibility statement (<code>ACCESSIBILITY.md</code>) and security policy (<code>SECURITY.md</code>). The policies are also on LP's website, <span class="ui keys">ltf-git-dev.github.io</span>, with the support address for questions.</p>
 
   <h2>Updates and going back</h2>
   <p>Each version of LP is published on the <strong>Releases</strong> page with its app. A new version is only released after you've approved it, and the versions before it stay there, so you can go back at any time (developers: <code>Scripts/rollback.sh</code>, see the README):</p>
@@ -569,19 +631,35 @@
   <p>See chapter <em>Widgets</em>: LP needs to be signed with your Apple ID team once.</p>
 
   <h3>Google or Outlook won't connect</h3>
-  <p>Check the client ID in <span class="ui">Settings › Calendars</span>. A Google client ID must be of the <em>iOS</em> type, and a Microsoft one needs the <em>iOS / macOS</em> platform — the instructions in that tab walk you through it.</p>
+  <p>A work or school Microsoft account may need its organisation's approval — ask your IT department, or add the account in <span class="ui">System Settings › Internet Accounts</span> and connect Apple Calendar instead. If you use your own client ID (<span class="ui">Settings › Calendars › Use Your Own Client ID</span>), check it: a Google one must be of the <em>iOS</em> type, and a Microsoft one needs the <em>iOS / macOS</em> platform.</p>
 
   <h3>Sharing a board fails</h3>
-  <p>The GitHub token must have the <code>gist</code> permission and must not have expired. Disconnect and connect a new token in <span class="ui">Settings › Sharing</span>.</p>
+  <p><strong>Google Drive:</strong> the message says what's missing. If the Google Drive API isn't turned on (only with your own client ID), turn it on in that client ID's Google Cloud project. If LP isn't allowed to use Drive, click <span class="ui">Allow Google Drive…</span> in <span class="ui">Settings › Sharing</span> again and keep the Drive permission ticked on Google's page. If the page's Google account isn't connected, connect it in <span class="ui">Settings › Calendars</span>.</p>
+  <p><strong>GitHub:</strong> the token must have the <code>gist</code> permission and must not have expired. Disconnect and connect a new token in <span class="ui">Settings › Sharing</span>.</p>
 
   <h3>Text looks too big or too small</h3>
   <p>Use <span class="keys"><kbd>⌘</kbd> <kbd>+</kbd></span> / <span class="keys"><kbd>⌘</kbd> <kbd>−</kbd></span> in a page, <span class="ui">Settings › Editor › Size</span>, or <span class="ui">Interface size</span> for the rest of LP.</p>
 
   <h3>I changed a note in another app</h3>
-  <p>LP notices and shows the new version. If you were editing the same note in LP at that moment, your edits in LP are kept and saved.</p>
+  <p>LP notices and shows the new version. If you were editing the same note in LP at that moment, LP saves your edits and keeps the other app's version as a copy in its Recovered folder — an alert tells you, with <span class="ui">Show in Finder</span>.</p>
+
+  <h3>LP says a service “asked LP to slow down”</h3>
+  <p>Google, Microsoft and GitHub limit how often an app may call them. When one of them says “too many requests”, LP waits as long as it asks — never more than an hour — shows until when (next to the account in <span class="ui">Settings › Calendars</span>, or in a board's progress panel), and then carries on by itself. Until then LP sends that service nothing, so a change you try to a calendar in the meantime is turned down — make it again afterwards. If one keeps asking about a shared board, its automatic updates pause until your next change or <span class="ui">Update Now</span>.</p>
+
+  <h3>Can I see my calendar without internet?</h3>
+  <p>Yes. While LP is running and online, it syncs your Google and Outlook calendars in full about every half hour — from a year back to two years ahead, plus any other months you open — and keeps that copy on your Mac until you disconnect the account. So your calendar shows offline, on a train or a plane, and reminders still come. While offline you can't change events: LP says so and puts the event back as it was, so make the change again once you're online. (The <span class="ui">Sync</span> button in the calendar syncs everything at once.) Apple Calendar works fully offline, changes included, because macOS keeps it: if you want that for Google or Outlook too, add the account in <span class="ui">System Settings › Internet Accounts</span> and connect <strong>Apple Calendar</strong> in LP instead.</p>
+
+  <h3>LP says “Couldn’t Open This Page”</h3>
+  <p>LP couldn't read the file — it may be locked, or not text. Fix that (in Finder, <span class="ui">Get Info</span> shows its permissions) and click <span class="ui">Try Again</span>. LP never writes over a page it couldn't read.</p>
+
+  <h3>Renaming a board says nothing was moved</h3>
+  <p>Before LP renames or moves a board, it writes the board's ID into the file so its history and sharing follow it. If the file can't be read or written — it's locked, or saved in an encoding other than UTF-8 — or its history in the hidden <code>.lp</code> folder can't be updated, LP leaves everything where it was. Unlock the file (or the <code>.lp</code> folder), or save it as UTF-8 in a text editor, and try again. If it says the board changed in another app meanwhile, simply try again.</p>
+
+  <h3>A board says its page was set up somewhere else</h3>
+  <p>See <em>A page shared from somewhere else</em> in chapter 7. Pages shared from LP 1.0.0 need <span class="ui">Keep It Updated From Here</span> once.</p>
 
   <h3>Where can I read more?</h3>
-  <p>The README in the repository describes LP's features and development, and <code>CODEX.md</code> explains how it's built.</p>
+  <p>LP's website, <span class="ui keys">ltf-git-dev.github.io</span>, has the policies. In the repository, the README covers LP's features and development and <code>CODEX.md</code> how it's built.</p>
 </section>
 
 <script>

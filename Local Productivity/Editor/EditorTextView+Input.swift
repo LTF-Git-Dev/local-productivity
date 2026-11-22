@@ -300,11 +300,17 @@ extension EditorTextView {
             return
         }
 
-        var blocks = MarkdownParser.parse(markdown).blocks.map { block -> Block in
+        let pasted = MarkdownParser.parse(markdown)
+        var blocks = pasted.blocks.map { block -> Block in
             var copy = block
             copy.blankLinesBefore = nil
             copy.sourceIndent = nil
             return copy
+        }
+        // Pasted front matter can't become this page's (it has its own), so it arrives as a YAML
+        // code block rather than vanishing.
+        if let frontMatter = pasted.frontMatter, !frontMatter.isEmpty {
+            blocks.insert(Block(kind: .code(info: "yaml", fence: .standard), runs: [.plain(frontMatter)]), at: 0)
         }
         while blocks.first?.isEmptyParagraph == true { blocks.removeFirst() }
         while blocks.last?.isEmptyParagraph == true { blocks.removeLast() }

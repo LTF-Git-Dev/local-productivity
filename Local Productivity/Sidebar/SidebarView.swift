@@ -339,6 +339,8 @@ private struct SidebarItemRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .help(isExpanded ? "Collapse" : "Expand")
+            .accessibilityLabel(isExpanded ? "Collapse folder" : "Expand folder")
         } else {
             Color.clear.frame(width: 16, height: 20)
         }

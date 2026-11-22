@@ -16,14 +16,21 @@ any agent). `CLAUDE.md` has the detailed working notes and pitfalls.
 
 ## 2. The non-negotiable workflow
 
-The owner's two standing rules (full text in `CLAUDE.md`):
+The owner's standing rules (full text in `CLAUDE.md`):
 
-- **No release without the owner's confirmation.** Every change goes on its own sub-branch.
-  Merging into `main` and releasing a new version happen only after the owner says yes to that
-  release — and always through `Scripts/deploy.sh`, which backs up the current release first so it
-  can be rolled back.
+- **No release without the owner's confirmation — and every version is a beta first.** Every
+  change goes on its own sub-branch. A version is published first as a beta (a GitHub
+  pre-release, from its branch) after the owner says yes to it; it becomes the official version —
+  merged into `main`, marked Latest — only after the owner has tested the beta and confirmed it
+  works. Always through `Scripts/deploy.sh`, which backs up the current release first so it can be
+  rolled back. Full steps: `docs/RELEASING.md`.
+- **The security checklist before any version is finalized** — `docs/SECURITY_CHECKLIST.md`: look
+  into every point whose condition applies, fix what is found, record the result.
+- **The repository stays private** until the owner says it can be public.
 - **Every session updates the documentation** — `CHANGELOG.md`, `README.md`, the user guide PDF,
   `CLAUDE.md`, `AGENTS.md`, `CODEX.md` and `docs/` — to match what happened in it.
+- **Codex reviews every finished task** — through Herdr, in the panel to the right of Claude —
+  and everything is tested again before the owner is asked to release it.
 
 Step by step:
 
@@ -40,21 +47,43 @@ Step by step:
      through `#available` helpers (`Design/Compatibility.swift`).
 4. **Commit and push the branch** so the work is backed up on GitHub.
 5. **Update the documents** (see the table in `CLAUDE.md`), including a `CHANGELOG.md` entry.
-6. **Ask before releasing.** Tell the owner what is ready and which version it would be. Only
-   after they confirm: merge into `main`, move the Unreleased lines of `CHANGELOG.md` under the new
-   version (they become the release notes) and run `Scripts/deploy.sh <version> --confirmed`. It
-   publishes a backup of the version being replaced before releasing the new one. Never release
-   by hand.
-7. **Roll back with `Scripts/rollback.sh`**, which creates a branch or downloads an app — it never
-   rewrites `main`.
+6. **Get it reviewed.** The Codex agent in the right-hand Herdr panel reviews the code base (see
+   §7). Check each finding, fix the real ones with tests, have Codex look at the fixes, and test
+   everything again.
+7. **Run the security checklist** (`docs/SECURITY_CHECKLIST.md`) and add the version's result to
+   its record, with the output of `LP_TEST_VERBOSE=1 Scripts/test.sh ownership`.
+8. **Ask before publishing a beta.** Tell the owner what is ready and which beta it would be. Only
+   after they confirm: set `MARKETING_VERSION`, move the Unreleased lines of `CHANGELOG.md` under
+   the new version (they become the release notes), push, and run
+   `Scripts/deploy.sh <x.y.z-beta.n> --confirmed` — a pre-release built from the branch.
+9. **Make it official only when the owner confirms the beta works:** merge into `main`, then
+   `Scripts/deploy.sh <x.y.z> --confirmed`. It publishes the newest beta's own app (refusing if
+   that beta isn't properly published or the app's files changed since), and a backup of the
+   version being replaced first. Never release by hand.
+10. **Roll back with `Scripts/rollback.sh`**, which creates a branch or downloads an app — it never
+    rewrites `main`.
 
 ## 3. What agents must not do
 
-- Merge into `main`, tag, or publish a release without the owner's confirmation of that release.
+- Add analytics, telemetry, crash reporting, advertising, third-party SDKs or any server of ours —
+  LP is local-first and private by design (see `PRIVACY.md`).
+- Ask a connected service for a broader permission, or fetch, store or share more data, than a
+  feature needs — and never without updating `PRIVACY.md` and `docs/CONNECTED_ACCOUNTS.md` in the
+  same change (the calendar tests pin the permissions).
+- Put the owner's personal details (name, email) into files, commits or requests to outside
+  services; the copyright holder is the GitHub account, LTF-Git-Dev.
+- Merge into `main`, tag, or publish a release — beta or official — without the owner's
+  confirmation of that step. A yes to a beta is not a yes to the official release.
+- Make the repository public, or change its visibility, without the owner's explicit say-so.
+- Publish an app whose signature shows a personal email address, or that contains a token or key
+  (`deploy.sh` checks both).
 - Force-push, rewrite published history, delete tags, delete GitHub Releases, or delete branches
   others may use — unless the owner explicitly asks for it.
+- Read, print, move or export the release signing key (Keychain item "LP release signing key"),
+  or weaken what the updater checks (signature, checksum, bundle ID, version, code signature).
 - Commit secrets: OAuth tokens, GitHub tokens, client secrets, personal data. Tokens belong in the
-  Keychain; client IDs are entered by the user in Settings.
+  Keychain. Client IDs are public identifiers — LP's own live in `BuiltInRegistration.swift`, a
+  person's own in Settings — and there is never a client secret.
 - Send the user's notes or personal data to any service the user did not ask for.
 - Take outward-facing actions (publishing, sharing, emailing, creating repositories, opening PRs
   on other projects) without the user's go-ahead.
@@ -69,8 +98,10 @@ Step by step:
 - [ ] Docs updated for this session: `CHANGELOG.md`, `README.md`, the user guide PDF (if anything
       visible changed), requirement status in `docs/PRODUCT_REQUIREMENTS.md`, architecture and
       design notes, `CODEX.md`, `CLAUDE.md` "Where things stand" and pitfalls
-- [ ] Committed on a branch and pushed; merged and released only after the owner confirmed,
-      through `Scripts/deploy.sh`
+- [ ] Reviewed by Codex; every finding fixed or explained; everything tested again afterwards
+- [ ] Security checklist run for the version and recorded in `docs/SECURITY_CHECKLIST.md`
+- [ ] Committed on a branch and pushed; a beta published only after the owner's yes; merged and
+      released as official only after the owner confirmed the beta — through `Scripts/deploy.sh`
 
 ## 5. Useful tools in this environment
 
@@ -83,8 +114,26 @@ Step by step:
 | `gh` CLI | Repository, releases (already authenticated) |
 | `Scripts/signing-team.sh` | Find a signing team for `LP_TEAM_ID` (widgets need one to show data) |
 | `Scripts/make-user-guide.sh` | Rebuild the user guide PDF after editing `docs/user-guide/guide.html` — then look at every page |
+| `Scripts/make-site.py`, `Scripts/make-site-shots.sh` | LP's website: pages from the policies, screenshots from the harness. Look at it over `http://127.0.0.1` in light, dark and phone widths; publishing it needs the owner's yes |
 
 ## 6. Communicating with the user
 
 Explain results in plain language: what changed, where it is, how it was verified, and anything
 the user needs to do. Keep jargon out of user-facing messages.
+
+## 7. When you are the reviewer
+
+Codex reviews Claude's work before every release (Claude asks through Herdr). As the reviewer:
+
+- **Read; don't change.** Don't edit files, commit, push or change git state — Claude is working
+  in the same checkout. Reading files, `git log`/`git diff` and searching are fine.
+- **Start with the branch's changes** (`git diff main...HEAD`), then follow them into the code they
+  touch. Hold the work to this file, `CODEX.md` and `CLAUDE.md`: the user's files must never be at
+  risk; the security model (paths, links, tokens) and the security checklist
+  (`docs/SECURITY_CHECKLIST.md`); the concurrency rules; tests for every parser, serializer and
+  model change; the design system for UI; the documents kept current.
+- **Report only what is actionable**, most severe first. For each finding: the file and line, what
+  goes wrong (a concrete input or situation and its result), how sure you are, and a suggested
+  fix. Mark style or taste points as minor, or leave them out.
+- **Say so plainly when you find nothing actionable.** When Claude sends fixes, check each one
+  against the finding it answers.

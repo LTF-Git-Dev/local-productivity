@@ -152,6 +152,8 @@ final class EditorController: NSViewController, NSTextViewDelegate, EditorTextVi
         }
         let document = session.readDocument()
         textView.setDocument(DocumentConverter.attributedString(for: document.blocks, context: textView.converterContext))
+        // A page that couldn't be read stays read-only until it can be.
+        textView.isEditable = session.readFailure == nil
         // Long pages only: for short ones a cold save is already instant. The parsed blocks carry
         // the same runs the editor will produce, so nothing has to be read back from the editor.
         if textView.storage.length > 20_000 { session.warmSaveCache(with: document.blocks) }
@@ -164,6 +166,7 @@ final class EditorController: NSViewController, NSTextViewDelegate, EditorTextVi
         dismissMenu()
         hideFormatBar()
         textView.setDocument(DocumentConverter.attributedString(for: document.blocks, context: textView.converterContext))
+        textView.isEditable = session.readFailure == nil
         let location = min(selection.location, max(0, textView.storage.length - 1))
         textView.setSelectedRange(NSRange(location: location, length: 0))
         scrollView.contentView.scroll(to: origin)

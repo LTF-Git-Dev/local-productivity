@@ -29,7 +29,8 @@ nonisolated enum MicrosoftGraphMapping {
             clientID: clientID,
             redirectURI: scheme + "://auth",
             callbackScheme: scheme,
-            scopes: ["offline_access", "https://graph.microsoft.com/Calendars.ReadWrite", "https://graph.microsoft.com/User.Read"],
+            // Only the calendars (and staying signed in) — not the person's profile.
+            scopes: ["offline_access", "https://graph.microsoft.com/Calendars.ReadWrite"],
             extraAuthorizeParameters: ["prompt": "select_account", "response_mode": "query"],
             sendsScopeOnRefresh: true
         )
@@ -49,8 +50,10 @@ nonisolated enum MicrosoftGraphMapping {
         return components.url!
     }
 
-    static func meURL() -> URL {
-        url("/me", [URLQueryItem(name: "$select", value: "mail,userPrincipalName,displayName")])
+    /// The account's own calendar: its owner's address names the account, so LP needs no access
+    /// to the person's profile.
+    static func defaultCalendarURL() -> URL {
+        url("/me/calendar", [URLQueryItem(name: "$select", value: "owner")])
     }
 
     static func calendarsURL() -> URL {
@@ -98,8 +101,8 @@ nonisolated enum MicrosoftGraphMapping {
     }
 
     static func accountName(from data: Data) throws -> String {
-        let json = try object(data)
-        let name = (json["mail"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? json["userPrincipalName"] as? String
+        let owner = try object(data)["owner"] as? [String: Any]
+        let name = (owner?["address"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? owner?["name"] as? String
         guard let name, !name.isEmpty else { throw CalendarSyncError.invalidResponse }
         return name
     }

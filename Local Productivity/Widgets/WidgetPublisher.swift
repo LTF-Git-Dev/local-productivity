@@ -67,17 +67,20 @@ extension AppModel {
         }
         let items = Array(overdue.sorted(by: order).suffix(100)) + Array(upcoming.sorted(by: order).prefix(200))
 
+        return WidgetSnapshot(generated: now, workspace: workspace.name, items: items, events: widgetEvents(now: now),
+                              boards: Array(boards.sorted { ($0.modified, $0.path) > ($1.modified, $1.path) }.prefix(24)))
+    }
+
+    /// The next two weeks' events from the visible calendars, for the widgets.
+    func widgetEvents(now: Date = Date()) -> [WidgetSnapshot.Event] {
         let start = Calendar.current.startOfDay(for: now)
         let end = start.addingTimeInterval(15 * 86_400)
         let colors = Dictionary(calendarSync.calendars.map { ($0.id, $0.colorHex) }, uniquingKeysWith: { first, _ in first })
-        let events = calendarSync.events
+        return calendarSync.events
             .filter { !calendarSync.hiddenCalendarIDs.contains($0.calendarID) && $0.end > start && $0.start < end }
             .sorted { ($0.start, $0.title, $0.id) < ($1.start, $1.title, $1.id) }
             .prefix(150)
             .map { WidgetSnapshot.Event(title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay,
                                         location: $0.location, color: colors[$0.calendarID]) }
-
-        return WidgetSnapshot(generated: now, workspace: workspace.name, items: items, events: Array(events),
-                              boards: Array(boards.sorted { ($0.modified, $0.path) > ($1.modified, $1.path) }.prefix(24)))
     }
 }

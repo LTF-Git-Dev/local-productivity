@@ -58,6 +58,16 @@ nonisolated struct Board: Codable, Hashable, Sendable {
     /// Cards written without IDs get new random ones on every read. Matching them to the cards
     /// of `old` by text keeps their history from looking like deletions and re-creations.
     mutating func adoptIDs(from old: Board) {
+        // Lists have no IDs in the file, so every read makes new ones. A list whose title is still
+        // there keeps its ID, so an action aimed at it still finds it — but only when the title is
+        // unique on both boards; lists sharing a title get new IDs rather than take another's.
+        let oldLanes = Dictionary(grouping: old.lanes, by: \.title)
+        let titleCounts = Dictionary(grouping: lanes, by: \.title).mapValues(\.count)
+        for laneIndex in lanes.indices {
+            let title = lanes[laneIndex].title
+            guard titleCounts[title] == 1, let matches = oldLanes[title], matches.count == 1 else { continue }
+            lanes[laneIndex].id = matches[0].id
+        }
         // Never hand out an ID a card in the file already has (a copied card keeps its text).
         let taken = Set((allCards + archive).filter(\.hasStoredID).map(\.id))
         var available = Dictionary(grouping: old.allCards.filter { !taken.contains($0.id) }, by: \.text)
@@ -70,6 +80,64 @@ nonisolated struct Board: Codable, Hashable, Sendable {
                 }
             }
         }
+    }
+
+    /// Moves cards to a list, before a given card or at the end, in the order asked for. Moving
+    /// into a Complete list marks the cards done; moving out of one marks them not done, as in
+    /// Obsidian. Nothing changes when the list no longer exists (the file changed elsewhere).
+    mutating func moveCards(_ cardIDs: [String], toLane laneID: String, before targetID: String?) {
+        guard let destination = lanes.firstIndex(where: { $0.id == laneID }) else { return }
+        var moving: [BoardCard] = []
+        var origins: [String: Bool] = [:]
+        for laneIndex in lanes.indices {
+            let marksComplete = lanes[laneIndex].marksComplete
+            lanes[laneIndex].cards.removeAll { card in
+                guard cardIDs.contains(card.id) else { return false }
+                moving.append(card)
+                origins[card.id] = marksComplete
+                return true
+            }
+        }
+        moving.sort { (cardIDs.firstIndex(of: $0.id) ?? 0) < (cardIDs.firstIndex(of: $1.id) ?? 0) }
+        let completes = lanes[destination].marksComplete
+        for index in moving.indices {
+            if completes {
+                moving[index].isDone = true
+            } else if origins[moving[index].id] == true {
+                moving[index].isDone = false
+            }
+        }
+        let insertAt = targetID.flatMap { id in lanes[destination].cards.firstIndex { $0.id == id } }
+            ?? lanes[destination].cards.endIndex
+        lanes[destination].cards.insert(contentsOf: moving, at: insertAt)
+    }
+}
+
+/// What the card sheet changed; everything left nil stays as it is on the card. Applied to the
+/// card as it is at the moment the change is made, so changes made elsewhere meanwhile survive.
+nonisolated struct CardEdit: Equatable, Sendable {
+    var title: String? = nil
+    var tags: [String]? = nil
+    var changesDue = false
+    var due: Day? = nil
+    var changesTime = false
+    var time: TimeOfDay? = nil
+    var body: String? = nil
+    var isDone: Bool? = nil
+    var laneID: String? = nil
+
+    var isEmpty: Bool { self == CardEdit() }
+
+    /// `card` with its text, notes and state edited; which list it is in is up to the caller.
+    func applied(to card: BoardCard) -> BoardCard {
+        var edited = card
+        if let title { edited.text = CardText.settingTitle(title, in: edited.text) }
+        if let tags { edited.text = CardText.settingTags(tags, in: edited.text) }
+        if changesDue { edited.text = CardText.settingDue(due, in: edited.text) }
+        if changesTime { edited.text = CardText.settingDueTime(time, in: edited.text) }
+        if let body { edited.body = body }
+        if let isDone { edited.isDone = isDone }
+        return edited
     }
 }
 

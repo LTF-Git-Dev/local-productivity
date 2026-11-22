@@ -493,13 +493,21 @@ private nonisolated struct InlineScanner {
         index = skipSpaces(from: index, limit: limit)
         var title: String? = nil
         if index < limit, let closer = Self.titleCloser(for: characters[index]) {
+            // The title is kept as it reads: escapes are taken out here and put back, once, when
+            // it is written (`InlineSerializer.quotedTitle`).
             var end = index + 1
+            var decoded = ""
             while end < limit, characters[end] != closer {
-                if characters[end] == "\\" { end += 1 }
+                if characters[end] == "\\", end + 1 < limit, characters[end + 1].isASCIIPunctuation {
+                    decoded.append(characters[end + 1])
+                    end += 2
+                    continue
+                }
+                decoded.append(characters[end])
                 end += 1
             }
             guard end < limit else { return nil }
-            title = String(characters[(index + 1)..<end])
+            title = decoded
             index = skipSpaces(from: end + 1, limit: limit)
         }
 

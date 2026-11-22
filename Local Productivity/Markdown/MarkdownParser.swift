@@ -202,7 +202,7 @@ private nonisolated struct BlockParser {
         if line.indent - base >= 4 {
             block = parseIndentedCode(base: base)
         } else if let fence = Self.fenceOpening(line.content) {
-            block = parseFencedCode(line, fence)
+            block = parseFencedCode(line, fence, base: base)
         } else if let heading = Self.atxHeading(line.content) {
             index += 1
             block = heading
@@ -470,14 +470,16 @@ private nonisolated struct BlockParser {
         return FenceOpening(character: first, length: run.count, info: info)
     }
 
-    private mutating func parseFencedCode(_ line: Line, _ fence: FenceOpening) -> Block {
+    private mutating func parseFencedCode(_ line: Line, _ fence: FenceOpening, base: Int) -> Block {
         index += 1
         var body: [String] = []
         while index < lines.count {
             let next = Line(lines[index])
             let trimmed = next.content.trimmingTrailingWhitespace
             index += 1
-            if trimmed.count >= fence.length, trimmed.allSatisfy({ $0 == fence.character }) { break }
+            // A closing fence is indented less than four columns; one indented further is a line
+            // of the code (CommonMark).
+            if next.indent - base < 4, trimmed.count >= fence.length, trimmed.allSatisfy({ $0 == fence.character }) { break }
             body.append(next.dropping(columns: line.indent))
         }
         let text = body.joined(separator: "\n")

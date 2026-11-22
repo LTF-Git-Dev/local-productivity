@@ -21,6 +21,20 @@ struct PageView: View {
                     .frame(height: 20)
                     .allowsHitTesting(false)
             }
+            .overlay {
+                // Instead of an empty page inviting typing, say what happened.
+                if let reason = session.readFailure {
+                    ContentUnavailableView {
+                        Label("Couldn’t Open This Page", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("\(reason)\nNothing on it is changed until it can be read.")
+                    } actions: {
+                        Button("Try Again") { session.retryRead() }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.lpCanvas)
+                }
+            }
             .background(Color.lpCanvas)
             .navigationTitle(session.title.isEmpty ? "Untitled" : session.title)
             .toolbar {

@@ -6,11 +6,13 @@
 //  sidebar-and-page layout for that workspace.
 //
 
+import AppKit
 import SwiftUI
 
 struct RootView: View {
 
     @Environment(AppModel.self) private var app
+    @Environment(\.openWindow) private var openWindow
     #if DEBUG
     @Environment(\.openSettings) private var openSettings
     #endif
@@ -37,17 +39,26 @@ struct RootView: View {
             Text("“\(app.pendingExternalLink?.absoluteString ?? "")” opens with another app on your Mac. Only open links you trust.")
         }
         .alert(app.alert?.title ?? "", isPresented: Binding(get: { app.alert != nil }, set: { if !$0 { app.alert = nil } })) {
+            if let file = app.alert?.file {
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([file]) }
+            }
             Button("OK", role: .cancel) {}
         } message: {
             Text(app.alert?.message ?? "")
         }
         // Widgets open LP at a page, a day or Home.
         .onOpenURL { url in app.handle(url) }
+        // An update was found, or the person asked to check: show the Software Update window.
+        .onChange(of: app.updater.presentRequests) { openWindow(id: "update") }
         .task {
             #if DEBUG
             if SnapshotHarness.isActive {
                 SnapshotHarness.openSettings = { openSettings() }
                 await SnapshotHarness.run(app)
+                return
+            }
+            if DriveSelfTest.isRequested {
+                await DriveSelfTest.run(app)
                 return
             }
             #endif

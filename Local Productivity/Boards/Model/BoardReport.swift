@@ -113,6 +113,76 @@ nonisolated enum BoardReport {
 
     // MARK: HTML
 
+    // MARK: Document
+
+    /// The same page as a plain document — headings, a table and lists, nothing that runs — for a
+    /// service that turns HTML into its own kind of document (Google Drive makes a Google Doc of
+    /// it). Card notes are never included.
+    static func documentHTML(_ input: Input) -> String {
+        let progress = BoardProgress(board: input.board, today: input.today)
+        let heading = escapeHTML([input.icon, input.title].compactMap { $0 }.joined(separator: " "))
+        var out = ["<!DOCTYPE html>", "<html><head><meta charset=\"utf-8\"><title>\(heading)</title></head><body>"]
+        out.append("<h1>\(heading)</h1>")
+        out.append("<p><b>\(progress.percent)% complete</b> · \(progress.done) of \(progress.total) \(progress.total == 1 ? "card" : "cards") done</p>")
+        out.append("<p><code>\(bar(progress.fraction, width: 24))</code></p>")
+
+        var highlights: [String] = []
+        if progress.overdue > 0 { highlights.append("⚠️ \(progress.overdue) overdue") }
+        if progress.dueSoon > 0 { highlights.append("📅 \(progress.dueSoon) due in the next 3 days") }
+        if let log = input.log {
+            let recent = log.completedCount(withinDays: 7, now: input.now)
+            if recent > 0 { highlights.append("✅ \(recent) completed this week") }
+        }
+        if !highlights.isEmpty { out.append("<p>\(highlights.joined(separator: " · "))</p>") }
+
+        out.append("<table><tr><th>List</th><th>Cards</th><th></th></tr>")
+        let largest = max(1, progress.perLane.map(\.count).max() ?? 1)
+        for lane in progress.perLane {
+            out.append("<tr><td>\(escapeHTML(lane.title))\(lane.marksComplete ? " ✓" : "")</td><td>\(lane.count)</td>"
+                       + "<td><code>\(bar(Double(lane.count) / Double(largest), width: 12))</code></td></tr>")
+        }
+        out.append("</table>")
+
+        for lane in input.board.lanes {
+            out.append("<h2>\(escapeHTML(lane.title))\(lane.marksComplete ? " ✓" : "")</h2>")
+            guard !lane.cards.isEmpty else {
+                out.append("<p><i>Nothing here yet.</i></p>")
+                continue
+            }
+            out.append("<ul>")
+            for card in lane.cards {
+                let done = card.isDone || lane.marksComplete
+                var line = (done ? "✅ " : "") + escapeHTML(card.title.isEmpty ? "Untitled card" : card.title)
+                if let due = card.due {
+                    let overdue = !done && due < input.today
+                    line += overdue ? " · <b>⚠️ overdue (\(escapeHTML(due.shortTitle)))</b>" : " · due \(escapeHTML(due.shortTitle))"
+                }
+                if !card.tags.isEmpty {
+                    line += " · " + card.tags.map { "#" + escapeHTML($0) }.joined(separator: " ")
+                }
+                if let checklist = card.checklist {
+                    line += " · ☑︎ \(checklist.done)/\(checklist.total)"
+                }
+                out.append("<li>\(line)</li>")
+            }
+            out.append("</ul>")
+        }
+
+        if let log = input.log, !log.events.isEmpty {
+            out.append("<h2>Recent activity</h2>")
+            out.append("<ul>")
+            for event in log.events.suffix(12).reversed() {
+                out.append("<li><b>\(escapeHTML(event.at.formatted(.dateTime.day().month(.abbreviated).hour().minute())))</b> — \(escapeHTML(event.sentence))</li>")
+            }
+            out.append("</ul>")
+        }
+
+        out.append("<hr>")
+        out.append("<p><i>Updated \(escapeHTML(input.now.formatted(date: .abbreviated, time: .shortened))) · Shared from LP (Local Productivity)</i></p>")
+        out.append("</body></html>")
+        return out.joined(separator: "\n") + "\n"
+    }
+
     static func html(_ input: Input) -> String {
         let progress = BoardProgress(board: input.board, today: input.today)
         let palette = ["#3B82F6", "#8B5CF6", "#F59E0B", "#14B8A6", "#EC4899", "#64748B"]

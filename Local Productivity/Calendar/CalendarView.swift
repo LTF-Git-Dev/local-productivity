@@ -130,12 +130,19 @@ struct CalendarView: View {
 
     private var monthHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // The month never breaks mid-word in a narrow window: the title keeps its line, ahead of
+            // the space beside it, and only a long month name shrinks a little.
             Text(app.calendarMonth.date().formatted(.dateTime.month(.wide)))
                 .font(.lp(size: 24, weight: .bold))
                 .foregroundStyle(Color.lpInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .layoutPriority(1)
             Text(app.calendarMonth.date().formatted(.dateTime.year()))
                 .font(.lp(size: 24, weight: .regular))
                 .foregroundStyle(Color.lpInkTertiary)
+                .lineLimit(1)
+                .layoutPriority(1)
             Spacer()
             HStack(spacing: 6) {
                 syncStatus
@@ -198,7 +205,7 @@ struct CalendarView: View {
                     .accessibilityLabel("Syncing calendars…")
             } else {
                 Button {
-                    app.calendarSync.scheduleRefresh(after: 0)
+                    app.calendarSync.syncNow()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -794,7 +801,7 @@ private struct PanelTaskRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Button {
-                workspace.toggleTask(task)
+                app.toggleTask(task, in: workspace)
             } label: {
                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.lp(size: 15))
@@ -803,6 +810,8 @@ private struct PanelTaskRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .help(task.isDone ? "Mark as not done" : "Mark as done")
+            .accessibilityLabel(task.isDone ? "Mark as not done" : "Mark as done")
 
             Button {
                 app.openPage(task.path)

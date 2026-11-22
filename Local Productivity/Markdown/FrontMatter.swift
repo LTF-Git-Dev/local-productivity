@@ -47,6 +47,10 @@ nonisolated enum FrontMatter {
         return lines.joined(separator: "\n")
     }
 
+    /// The key a front matter line sets, read the way `value(for:in:)` reads it (`key : value`
+    /// too), or nil for a line that sets none.
+    static func key(of line: String) -> String? { entry(in: line)?.key }
+
     private static func entry(in line: String) -> (key: String, value: String)? {
         guard let first = line.first, first != " ", first != "\t", first != "#", first != "-",
               let colon = line.firstIndex(of: ":") else { return nil }

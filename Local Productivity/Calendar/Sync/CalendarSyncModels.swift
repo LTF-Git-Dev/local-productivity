@@ -140,15 +140,25 @@ nonisolated enum CalendarSyncError: LocalizedError, Equatable {
     case notFound
     case readOnlyCalendar
     case cancelled
+    case signInInterrupted
     case invalidResponse
     case server(Int, String)
+    /// The service asked LP to slow down until then.
+    case rateLimited(Date)
+    /// This Google API isn't turned on in the person's Google Cloud project.
+    case serviceDisabled(String)
+    /// The account is connected through another app registration, which its shared Drive pages
+    /// belong to.
+    case registrationInUse(String)
+    /// A board page is being shared through the account right now.
+    case sharingInProgress(String)
 
     var errorDescription: String? {
         switch self {
         case .notConnected:
             return "This calendar account isn’t connected."
         case .missingClientID(let kind):
-            return "Add a client ID for \(kind.title) in Settings → Calendars first."
+            return "This copy of LP has no \(kind.title) registration of its own. Add your own client ID under Advanced in Settings → Calendars."
         case .accessDenied:
             return "LP doesn’t have permission to use this calendar."
         case .signInRequired:
@@ -161,10 +171,20 @@ nonisolated enum CalendarSyncError: LocalizedError, Equatable {
             return "This calendar is read-only."
         case .cancelled:
             return "Sign-in was cancelled."
+        case .signInInterrupted:
+            return "LP was still disconnecting an account while you signed in, so this sign-in may not last. Please connect again."
         case .invalidResponse:
             return "The calendar service sent a response LP couldn’t read."
         case .server(let status, let message):
             return message.isEmpty ? "The calendar service returned an error (\(status))." : message
+        case .sharingInProgress(let account):
+            return "LP is sharing a board through \(account) right now, so its connection wasn’t changed. Try again in a moment."
+        case .registrationInUse(let account):
+            return "\(account) is connected through another app registration, and the board pages you shared to its Google Drive belong to it. Stop sharing them (or disconnect the account) before connecting it this way."
+        case .serviceDisabled(let service):
+            return "\(service) isn’t turned on in your Google Cloud project. Turn it on there (APIs & Services → Library), then try again."
+        case .rateLimited(let until):
+            return "The calendar service asked LP to slow down. Please wait until \(until.formatted(date: .omitted, time: .shortened)); LP syncs again by itself after that."
         }
     }
 }
@@ -205,3 +225,46 @@ nonisolated enum CalendarDates {
         return formatter.string(from: date)
     }
 }
+
+// MARK: - Full sync
+
+/// What LP keeps of a connected Google or Outlook calendar, so it is all there offline: everything
+/// from a year back to two years ahead, synced about every half hour while LP runs and is online,
+/// plus any other months you open. Nothing fetched is dropped until the account is disconnected.
+/// (Apple Calendar needs none of this: macOS keeps it all on the Mac.)
+nonisolated enum CalendarSyncRange {
+    static let monthsBack = 12
+    static let monthsAhead = 24
+    /// How long a full sync stays fresh; the regular refreshes in between cover the months shown.
+    static let fullSyncInterval: TimeInterval = 30 * 60
+
+    /// Whether an account whose last full sync was at `last` (nil: never, or asked for again) needs one.
+    static func needsFullSync(lastFullSync last: Date?, now: Date) -> Bool {
+        last.map { now.timeIntervalSince($0) > fullSyncInterval } ?? true
+    }
+
+    static func full(around now: Date, calendar: Calendar = .current) -> DateInterval {
+        let month = calendar.dateInterval(of: .month, for: now)?.start ?? now
+        let start = calendar.date(byAdding: .month, value: -monthsBack, to: month) ?? month
+        let end = calendar.date(byAdding: .month, value: monthsAhead + 1, to: month) ?? month
+        return DateInterval(start: start, end: end)
+    }
+}
+
+extension SyncEvent {
+    /// The events after `account` was fetched for `intervals` from its `calendars` (the visible
+    /// ones): what was fetched replaces what it had in those times, what it had outside them is
+    /// kept, and events of calendars it no longer has (or that are hidden) go. Other accounts'
+    /// events are untouched.
+    static func merging(_ fetched: [SyncEvent], over intervals: [DateInterval], calendars: Set<String>,
+                        into existing: [SyncEvent], account: String) -> [SyncEvent] {
+        let fetchedIDs = Set(fetched.map(\.id))
+        let kept = existing.filter { event in
+            guard event.accountID == account else { return true }
+            guard calendars.contains(event.calendarID), !fetchedIDs.contains(event.id) else { return false }
+            return !intervals.contains { event.end > $0.start && event.start < $0.end }
+        }
+        return kept + fetched
+    }
+}
+

@@ -417,7 +417,10 @@ nonisolated enum MarkdownSerializer {
             }
             var length = max(3, fence.length)
             for line in body {
-                let trimmed = line.drop(while: { $0 == " " })
+                // Only a line indented less than four columns could close the fence (see the parser).
+                let indent = line.prefix(while: { $0 == " " }).count
+                guard indent < 4 else { continue }
+                let trimmed = line.dropFirst(indent)
                 let run = trimmed.prefix(while: { $0 == fence.character }).count
                 if run >= length, trimmed.dropFirst(run).trimmingWhitespace.isEmpty { length = run + 1 }
             }
@@ -450,7 +453,7 @@ nonisolated enum MarkdownSerializer {
         }
         let alt = image.width.map { "\(image.alt)|\($0)" } ?? image.alt
         if let title = image.title {
-            return "![\(alt)](\(destination) \"\(title.replacingOccurrences(of: "\"", with: "\\\""))\")"
+            return "![\(alt)](\(destination) \(InlineSerializer.quotedTitle(title)))"
         }
         return "![\(alt)](\(destination))"
     }

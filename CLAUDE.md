@@ -13,6 +13,12 @@ Read these before changing anything substantial:
 | `docs/ARCHITECTURE.md` | Modules, data flow, file formats, sync, security, testing |
 | `docs/DESIGN_SYSTEM.md` | Tokens (measured contrast), type, spacing, motion, components, review checklist |
 | `AGENTS.md` | Rules for any AI agent working on this repository |
+| `PRIVACY.md` · `TERMS.md` · `COOKIES.md` | Privacy policy, terms of use, cookie policy (LP uses none) — keep them true |
+| `docs/CONNECTED_ACCOUNTS.md` | What each connected service can do and keeps; least-privilege permissions |
+| `docs/REGISTERING_LP.md` | LP's own Google and Microsoft registrations: the website, the steps, Google's review texts, replacing the IDs |
+| `ACCESSIBILITY.md` · `SECURITY.md` · `LICENSE` | Accessibility statement and pass · vulnerability reporting · MIT License (© LTF-Git-Dev) |
+| `docs/RELEASING.md` | How a version is released: a beta first, official only once the owner confirms it; the way back; before going public |
+| `docs/SECURITY_CHECKLIST.md` | The owner's security checklist, what each point means for LP, and its result for every version |
 | `CODEX.md` | The complete guide to the project (written for Codex; a good tour for anyone) |
 | `README.md` | User-facing overview, shortcuts, Markdown support |
 
@@ -25,41 +31,61 @@ Read these before changing anything substantial:
 | Next | 1.1 — see the roadmap in `docs/PRODUCT_REQUIREMENTS.md` (backlinks, links updated on rename, week view) |
 | Platform | macOS 15 and later (deployment target 15.0); newer APIs through `Design/Compatibility.swift` |
 | Targets | `Local Productivity` (LP.app) and `LPWidgetsExtension` (embedded); shared scheme `Local Productivity`; versions at project level |
-| Branches | `main` = what is released; do new work on `feature/…` / `fix/…` branches |
-| Repository | `github.com/LTF-Git-Dev/local-productivity` (private), remote `origin`, authenticated `gh` |
-| Tests | `markdown` 355 · `calendar` 63 · `safety` 54 · `widgets` 18 · `reminders` 54 · `boards` 137 (681 in all) — all must stay at 0 failed |
+| Branches | `main` = the official release; betas are pre-releases built from their branch; do new work on `feature/…` / `fix/…` branches; **the v1.0.1 beta will be built from `release/1.0.1-beta.1`** (on `feature/in-app-updates`; dry run passed 2026-11-22) (on `fix/search-mixed-matches`, so it holds everything: Codex's final release-readiness pass and its fixes) |
+| Website | **Redesign live since 2026-11-20** (site `main` at `40e2dfd`, published at the owner's request once the reviewer Codex was clean: rounds 59 → 61 found 1, 2, 0). Code on `feature/website-redesign` (`make-site.py` rewritten; new `make-site-shots.sh`, `site-image.swift`) and, stacked on it, `fix/search-mixed-matches` (`e1cacf4`: ⌘K kept pages matching partly by name; new `search` suite), both pushed, not merged. Google's home-page needs are kept: the name LP, what it does, every permission and its use, the Limited Use statement, links to the privacy policy and terms, the Search Console files. The reviewer can't read `~/Documents` (macOS privacy): give it copies in the job's temp folder |
+| Repository | `github.com/LTF-Git-Dev/local-productivity` — one repository, **private until the owner says it can be public**; remote `origin`, authenticated `gh`. Commits use GitHub's noreply identity (repository-local `git config`, since 2026-11-20; older history still has the personal address — see "Before the repository goes public" in `docs/RELEASING.md`) |
+| Tests | `markdown` 365 · `calendar` 146 · `safety` 63 · `widgets` 18 · `reminders` 62 · `tasks` 24 · `search` 6 · `updates` 60 · `boards` 220 · `ownership` 29 (993 in all) — all must stay at 0 failed |
+| In-app updates | `feature/in-app-updates` (on `fix/release-readiness`; the v1.0.1 beta is built from it): LP → Check for Updates…, a daily check (Settings → General → Updates; betas optional), Install and Restart. `UpdateCore/` (shared, tested), `Local Productivity/Updates/` (`Updater`, `UpdateView`), `LPUpdateInstaller/` (unsandboxed XPC service that verifies and swaps the app). Releases carry `update.json` + `.sig`, signed with the key in the owner's login Keychain (`Scripts/release-key.swift`; public half in `UpdateFeed.publicKeys`; the owner must back it up). Reads the code repository's releases, so it works once the repository is public — **the owner's decision (2026-11-21): make the repository public once the beta is ready** (go through "Before the repository goes public" with them first). Tested end to end on this Mac (build 100 → 200, restarted, three times as the fixes went in). Codex: 4 rounds (10 → 4 → 1 → 0), clean at `7ba738f`. Not released |
+| Brand icon | **Owner chose 08 Orbit Bear on 20 November 2026; installed locally** on `feature/brand-icon`. Full bear + headset/progress ring at 64 px and above; enlarged head/headset with bold cheeks at 16/32, no body/ring. Head mark also used for the LP lockup and light/dark logos. Google PNG: `../LP Design/brand/exports/google-branding-logo-120.png` (120 × 120, under 1 MB). 07/09 remain explorations. See [brand guide](<../LP Design/brand/README.md>). Claude's check outside the builder's sandbox: the build, all 927 tests (0 failed), `--check` (including the Google logo's size limit), the 26 guard self-tests and the guide PDF rebuild (cover looked at); Orbit Bear is in the built app, the full bear at 256 px and the head-only master in the 32 px slot. The read-only Codex found nothing actionable. The website shows it too (site commit `c497958`). Not released |
+| Drive sharing | `feature/drive-sharing` (from `feature/github-sign-in`, so it holds all of v1.0.1): sharing boards to the person's own Google Drive (a Google Doc, `drive.file` only) or GitHub with their own token. Connect GitHub (a shared GitHub App) was withdrawn first, keeping its token-path fixes. Checked with the owner's real Google account (Debug self-test, 17/17). Codex round 1: 5 findings (disconnect racing a page being made, adopted pages and failed clean-ups escaping the list, a failed clean-up called a removal, an overclaim about Google hiding the owner) — fixed; round 2: 1 (an update finishing during a disconnect) — fixed; round 3 clean (`0bf171c`). Not released — waiting for the owner's yes to a beta (the one beta with everything; version number theirs to choose) |
+| One-click Connect | `feature/one-click-connect` (on top of `feature/drive-sharing`; merged into `feature/brand-icon`): LP's own Google registration ships (`BuiltInRegistration.shippedGoogleClientID`; Google Cloud project "LP - Local Productivity", External), so people connect Google with one click; your own client ID is Advanced; the Mac's Internet Accounts route is promoted. Microsoft is deferred to the next update (Microsoft blocked creating the account; `shippedMicrosoftClientID` stays nil). The website is live at https://ltf-git-dev.github.io (`Scripts/make-site.py`, its own public repository; Search Console: ltf.dev.supp@gmail.com is the only verified owner since 2026-11-20; support address `ltf.dev.supp@gmail.com`). Codex: 4 rounds (3 → 2 → 1 → 0), clean at `2b80761`. Google verification **submitted 2026-11-20**: the owner recorded the demo (take 1) in their own Mac user with the 1.0.1 Release build; Claude cut it to 81 s with English captions, passwords removed, no audio (`../Video/LP demo - captioned.mp4`), uploaded unlisted; the form texts and the appeal of the brand check ("home page not registered to you") are in; it's under review, and Google writes to ltf.dev.supp@gmail.com. Take 1 lacks the client ID in the address bar, event create/edit/delete and the Doc's update/removal — if Google asks, record Part 2 (`docs/REGISTERING_LP.md`). If the github.io home page is refused, a custom domain. **2026-11-22: the beta no longer waits** — LP's Google registration is off in it (`googleAwaitingReview`, branch `release/1.0.1-beta.1`) and returns in the first build after approval |
+| Release rules & security | `feature/release-rules` (stacked on `feature/full-calendar-sync`, so it holds all of v1.0.1): every version a beta first (`deploy.sh x.y.z-beta.n`, official only once the owner confirms the beta); the owner's security checklist run on v1.0.1 (`docs/SECURITY_CHECKLIST.md`): "slow down" from Google, Microsoft and GitHub honoured (`RateLimit`), the shared-page decision one tested function (`ShareTrust`), the `ownership` suite, release-app checks (signer, secrets), the official version = the tested beta's own zip. Codex: 4 rounds (8 → 3 → 1 → 0), the last clean (`b1869e9`). Not released — v1.0.1 goes out as `v1.0.1-beta.1` after the owner's yes |
+| Full calendar sync | `feature/full-calendar-sync` (stacked on `feature/privacy-and-license`): Google and Outlook synced in full (a year back to two years ahead) about every half hour while LP runs, kept until disconnect; races between syncing and editing closed (`fullSyncRequests`, `pendingWrites`). Codex: 6 rounds, the last clean (`acef0b9`). Not released |
+| Privacy & licence | `feature/privacy-and-license` (stacked on `feature/codex-review`): least-privilege calendar permissions, private sign-in, revoke on disconnect, no Apple events in the cache, the policies and the MIT License, an accessibility pass. Codex: 3 rounds, the last clean (`78b6e68`). Not released |
+| In review | `feature/codex-review` — Codex's review of the whole code base (25 rounds; the final whole-branch pass at `774c5df` found nothing actionable) and the fixes: no lost work, board identity, sharing permissions, tasks and reminders, calendar sync. Not released — waiting for the owner's confirmation |
 | Tooling | Xcode 27.2; `xcode-select` points at Xcode; the **Xcode plugin** (`xcode@claude-plugins-official`) is installed and approved |
 
 Known limits worth remembering: tables are edited in a sheet; renaming a page does not update
-`[[links]]`; Google/Microsoft sync needs the user's own OAuth client ID (Settings → Calendars);
+`[[links]]`; LP's own Google registration is off until Google approves it (`BuiltInRegistration.googleAwaitingReview`, set false in the first build after approval): Google needs the Mac's Internet Accounts or the person's own client ID until then; Microsoft needs the person's own
+client ID (Settings → Calendars → Use Your Own Client ID) until LP registers there;
 with ad-hoc signing, macOS may ask again for the workspace folder or Keychain access after a
 rebuild, and widgets cannot get data (they need a team — `LP_TEAM_ID`, `Scripts/signing-team.sh`);
 notification delivery needs the user's permission, which the harness never requests.
 
 ## ⚠️ The owner's rules — never skip them
 
-Set by the owner (2026-11-18). They override anything else in this repository.
+Set by the owner (2026-11-18 and 2026-11-19). They override anything else in this repository.
 
-**1. No release without the owner's confirmation.**
+**1. No release without the owner's confirmation — and every version is a beta first.**
+The full steps are in `docs/RELEASING.md`.
 
 1. **Every change goes on its own sub-branch** off `main` — `feature/…`, `fix/…`, `docs/…` — never
    on `main`. Commit in coherent steps and push the branch to `origin`, so work in progress is
    backed up too.
-2. When the work is done and tested, **ask the owner** whether to release it, naming the version
-   ("Ready to release v1.1.0 — shall I merge it into main and release it?").
-3. **Only after the owner confirms:** merge the branch into `main`, set `MARKETING_VERSION`
-   (project level), and release with `Scripts/deploy.sh <version> --confirmed`. Without that
-   confirmation nothing is merged into `main`, tagged or published. (`deploy.sh` enforces it: it
-   asks for the version to be typed, or needs `--confirmed`.)
-4. **Never lose the way back.** Every release is a tag plus a GitHub Release with the app zip.
+2. When the work is done, tested, reviewed by Codex (rule 3) and checked against the security
+   checklist (rule 4), **ask the owner** for a beta, naming it ("Ready for v1.1.0-beta.1 — shall I
+   publish it as a beta for you to test?").
+3. **Only after the owner says yes:** set `MARKETING_VERSION` (project level, the plain number),
+   turn the CHANGELOG's Unreleased lines into the version's entry, push, and publish the beta with
+   `Scripts/deploy.sh 1.1.0-beta.1 --confirmed` — a GitHub pre-release built from the branch;
+   `main` and the official version are not touched.
+4. **Only after the owner confirms the beta works:** merge the branch into `main` and release the
+   official version with `Scripts/deploy.sh 1.1.0 --confirmed` (marked Latest; refused unless the
+   app's files are exactly the newest beta's). A yes to a beta is never a yes to the official
+   release. Without a yes nothing is merged into `main`, tagged or published (`deploy.sh` enforces
+   it: it asks for the version to be typed, or needs `--confirmed`).
+5. **Never lose the way back.** Every release is a tag plus a GitHub Release with the app zip.
    `deploy.sh` refuses to publish until the version being replaced is backed up that way.
    Try `Scripts/deploy.sh <version> --dry-run` first.
-5. **To roll back:** `Scripts/rollback.sh` lists releases; `Scripts/rollback.sh 1.0.0` downloads
+6. **To roll back:** `Scripts/rollback.sh` lists releases; `Scripts/rollback.sh 1.0.0` downloads
    that app; `Scripts/rollback.sh 1.0.0 --source` puts that code on a `rollback/to-v1.0.0` branch
-   (one commit on top of `main`, history kept) to merge and redeploy — after the owner confirms.
-6. Never force-push, rewrite published history, delete tags or delete releases unless the owner
+   (one commit on top of `main`, history kept) to release like any other change — beta first,
+   after the owner confirms.
+7. Never force-push, rewrite published history, delete tags or delete releases unless the owner
    asks for exactly that. (They did once, on 2026-11-18: the test releases 1.0.0 and 1.1.0 were
    removed and the app started again at 1.0.0.)
+8. **The repository stays private** until the owner says it can be public — then go through
+   "Before the repository goes public" in `docs/RELEASING.md` with them first.
 
 **2. Every session updates the documentation.** Before a session ends, bring every document up to
 date with what happened in it, on the session's branch:
@@ -74,8 +100,38 @@ date with what happened in it, on the session's branch:
 | `CODEX.md` | Repository map, architecture, recipes, pitfalls |
 | `docs/PRODUCT_REQUIREMENTS.md` | Requirement status and roadmap |
 | `docs/ARCHITECTURE.md` · `docs/DESIGN_SYSTEM.md` | How it works · how it looks |
+| `docs/SECURITY_CHECKLIST.md` · `docs/RELEASING.md` | The version's checklist result (before a release) · the release process, if it changed |
 
 If a document has nothing new to say, leave it — but check each one.
+
+**3. Codex reviews every finished task before a release is proposed.**
+
+1. When a task is done and tested on its branch, use the **herdr** skill to have the Codex agent in
+   the right-hand Herdr panel review the code base — the branch's changes and everything they
+   touch. If there is no Codex panel, open one beside this pane and start Codex read-only:
+   `herdr pane split --current --direction right --cwd <repo> --no-focus`, then
+   `herdr agent start codex --kind codex --pane <new pane> -- --sandbox read-only --ask-for-approval never`.
+   Its instructions as a reviewer are in `AGENTS.md` §7.
+2. Herdr only works from inside a Herdr pane. A background job's shell may not inherit Herdr's
+   variables even when the session runs in one: read the `HERDR_*` variables from the parent
+   process (`ps eww -p $PPID`). If there is no `HERDR_ENV=1` anywhere, say so and ask the owner —
+   never drive Herdr from outside it. If Codex stops at an approval or a question, show it to the
+   owner rather than answering it.
+3. Talk it through: check every finding yourself, fix the real ones on the branch (with tests),
+   send the fixes back to Codex for a second look, and repeat until nothing actionable is left.
+4. Test everything again — `Scripts/test.sh`, `Scripts/build.sh`, a clean Release build, and the
+   UI in light, dark and a narrow window.
+5. Then come to the owner with what changed, what Codex found and what was done about it, the test
+   results, the security checklist's result (rule 4) and the proposed beta — and **wait**. Publish
+   only after they confirm (rule 1), keeping every way back.
+
+**4. Run the security checklist before finalizing any version.** Before asking for a beta, and
+again before the official release, go through `docs/SECURITY_CHECKLIST.md` — secrets, ownership,
+database rules, mass assignment, payments, rate limits, prove it. Look into every point whose
+condition applies, fix what is found (with tests), and add the version's result to the record there.
+Show the owner the result and the output of `LP_TEST_VERBOSE=1 Scripts/test.sh ownership` when
+asking to release. If LP ever gains a server, accounts, a database or payments, the points apply
+exactly as written (row-level security, server-side prices, signed webhooks, 403/404 tests).
 
 Commits end with:
 
@@ -86,7 +142,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ## Build, test, look
 
 ```sh
-Scripts/test.sh               # all suites (or: markdown | calendar | safety | widgets | reminders | boards); 0 failed
+Scripts/test.sh               # all suites (or: markdown | calendar | safety | widgets | reminders | tasks | search | boards | ownership); 0 failed
 Scripts/build.sh              # sandboxed Debug build (what Xcode produces)
 Scripts/build.sh harness      # unsandboxed Debug build for snapshots
 Scripts/snapshot.sh <name> "<step> ;; <step> ;; …"   # drive the real app, save PNGs
@@ -95,8 +151,15 @@ Scripts/make-stress-vault.sh  # 3,000-note workspace for speed work (use with th
 Scripts/render-widgets.sh     # draw the widgets light/dark (Xcode can't preview macOS widgets)
 Scripts/signing-team.sh       # signing teams for LP_TEAM_ID (builds and deploys sign with it)
 Scripts/make-user-guide.sh    # rebuild docs/LP User Guide.pdf from docs/user-guide/ — then look at every page
-Scripts/deploy.sh <version> [--dry-run | --confirmed]   # release (owner-confirmed only), backing up the current version first
+swift "../LP Design/brand/make-icon.swift" --app . # SVGs → exports, comparisons, catalog and guide PNG; add --check
+swift "../LP Design/brand/make-icon.swift" --app . --self-test-guards # 26 guard fixtures; no real catalog writes
+Scripts/make-site.py          # LP's public pages from the policies → ../LTF-Git-Dev.github.io (pushing it is a separate, owner-approved step)
+Scripts/make-site-shots.sh    # the website's screenshots (light + dark) from the harness → <site>/assets/shots; then make-site.py
+Scripts/deploy.sh <x.y.z-beta.n> [--dry-run | --confirmed]  # a beta: GitHub pre-release from the branch (owner-confirmed only)
+Scripts/deploy.sh <x.y.z> [--dry-run | --confirmed]         # the official version from main, once the owner confirmed its beta
+LP_TEST_VERBOSE=1 Scripts/test.sh ownership                 # the checklist's "prove it": every person-B check printed
 Scripts/rollback.sh [<version> [--source]]
+swift Scripts/release-key.swift public|sign <file>|verify <file>  # the release key (owner's Keychain); never print the private half
 ```
 
 The Xcode plugin's tools also work (open the project with `XcodeOpenWorkspace`, then
@@ -113,20 +176,51 @@ window. Useful variables: `LP_APPEARANCE=light|dark`, `LP_SNAPSHOT_SIZE=1280x800
 Harness steps worth knowing (full list in `Debug/SnapshotHarness.swift`):
 
 - Navigation: `open:<path>` (pages and boards), `route:home|calendar|boards|folder=<path>`, `new:`,
-  `palette:<query>`, `settings:<general|editor|notifications|calendars|sharing>`, `url:<link>`
+  `palette:<query>`, `settings:<general|editor|notifications|calendars|sharing>` (then
+  `scroll-other:<points>` scrolls the Settings window), `url:<link>`,
+  `back`, `forward`, `scroll-at:x,y=dy` (SwiftUI scroll views, e.g. the progress panel)
 - Editor: `type:`, `keys:` (real key events — the only way to test undo grouping), `shortcut:cmd =`
   (key events with modifiers, through the menus), `key:`, `find:`, `select:`, `format:`, `turn:`,
   `block:`, `dump`, `cat`, `layout`, `setting:size=17|spacing=relaxed|width=wide|font=…|interface=small`
 - Calendar: `demo-calendar` (in-memory account), `select-day:<offset>`, `event-editor:new|<title>`,
-  `event-create:<title>@<dayOffset>@<hour>`, `event-update:`, `event-delete:`, `events:<filter>`
+  `event-create:<title>@<dayOffset>@<hour>`, `event-update:`, `event-delete:`, `events:<filter>`,
+  `calendar-sync` (the Sync button); `LP_DEMO_CALENDAR_DELAY=<seconds>` makes the demo calendar a
+  slow service answering with what it had when asked, and `LP_DEMO_CALENDAR_WRITE_DELAY=<seconds>`
+  makes its changes slow to confirm — for races between syncing and editing;
+  `LP_DEMO_CALENDAR_LIMIT=<seconds>[@<n>]` makes its first (or n-th) fetch answer "too many
+  requests" (`@2` lets the calendars load first, so a change during the wait can be tried), and
+  `calendar-state` prints each account's sync state and how often the demo calendar was asked;
+  `calendar-disconnect[:anyway]` is Settings → Calendars → Disconnect for the demo account (its
+  Drive pages first)
 - Boards: `new-board:<folder>` (sheet), `create-board:<name>|<template>|<folder>`,
   `board-add:<list>=<text>`, `board-move:<card>=<list>[@<before card>]`,
   `board-card:<title>`, `board-progress[:off]`, `board-undo`, `board-log:<n>`,
-  `mouse-drag:x1,y1>x2,y2` (real mouse events through the app's queue)
+  `mouse-drag:x1,y1>x2,y2` (real mouse events through the app's queue), `share-trust` /
+  `share-forget` ("Keep It Updated From Here" / "Forget It" without a token), `share-update` /
+  `share-stop` (Update Now / Stop Sharing — harness runs never read the real GitHub token, so a
+  request LP decides to send stops at "Add a GitHub token"), `demo-drive[:<options>]` (the demo
+  account's Drive, in memory; options below), `share-to:<gist|drive>`
+  (Share Progress to that place), `share-start:<gist|drive>` / `share-wait` (start it without
+  waiting, to do something meanwhile — a disconnect, a `write:` replacing the file),
+  `share-update-start` (Update Now, the same way),
+  `share-elsewhere` (as if the page had been set up on another Mac), `drive-pages` (the demo
+  Drive's pages, private ones marked, and LP's list of them); `demo-drive` options, comma-separated:
+  `fail-deletes=<n>`, `fail-publishes=<n>` (letting the page be seen answers "slow down"),
+  `slow=<seconds>` (uploads and updates take that long),
+  `card-sheet:notes=<text>|done|delete` (drives the open card sheet through its own code — the
+  window capture doesn't include sheets)
 - Reminders: `reminders` (prints the plan), `reminder:<open|done|hour|tomorrow>=<title>`,
+  `reminder-keep:<title>` then `reminder-kept:<action>` (an old notification acted on later),
   `reminder-permission:<allowed|denied|ask>`; widgets data: `LP_WIDGET_SNAPSHOT=<path>`
 - Speed: `perf-load`, `perf-open:`, `perf-type:`, `perf-save`, `perf-search:`, `perf-phases`, `perf-memory`
-- Files: `write:<path>=<text>` changes a file behind the app's back; `state` prints the route
+- Files: `write:<path>=<text>` changes a file behind the app's back; `rename:<path>=<title>` renames
+  the way the sidebar does; `duplicate-file:<path>` duplicates and `move-file:<path>=<folder>` moves
+  the way the sidebar does; `move-race:<path>=<text>` makes the next move find that file changed
+  between its checks and its writes;
+  `open-markdown:<path>` opens a board in the page editor; `ready-to-quit` asks what quitting
+  asks (prints whether LP may quit and the notice it would show); `toggle-task:<text>` ticks a task off the way Home does; `state` prints
+  the route, the alert (with its file) and, on a board, `share=… boardID=…` (and
+  `card-sheet=… saveError=…` when a sheet is open or a save failed, and `shareError=…`)
 
 ## Things that are easy to get wrong
 
@@ -148,6 +242,9 @@ Harness steps worth knowing (full list in `Debug/SnapshotHarness.swift`):
 - A sheet that edits something must initialise its fields in `init`, not `onAppear` — pickers
   clamp values against placeholders otherwise (this broke event end times once).
 - Pass the window's `undoManager` into sheets; a sheet's own undo manager disappears with it.
+- A view's `init` runs again every time its parent redraws: anything a sheet must remember from
+  when it opened (the card it started from, the board it belongs to) has to be `@State`, not a
+  `let` — the card sheet compared against the wrong card until this was fixed.
 
 **Boards**
 - Boards are Obsidian Kanban files; keep the plugin's exact layout (two blank lines after each
@@ -155,6 +252,36 @@ Harness steps worth knowing (full list in `Debug/SnapshotHarness.swift`):
 - Card IDs are Obsidian block IDs (`^c…`); `adoptIDs` maps cards without IDs across reloads.
 - Never write to the user's notes when opening a board; the log in `.lp/boards/` is written only
   when something new is recorded.
+- **Identity:** a board's history and sharing go by its board ID, and `BoardStore.historyID` is
+  the only rule for it (copies made outside LP, boards known by their path, histories from 1.0.0).
+  Never key anything on `derivedID` directly. A history is written only once its board can be
+  found by that ID again (`saveLog`); moves write IDs first (`persistBoardIdentities`, front
+  matter only via `BoardParser.settingFrontMatter`), and histories are told their new place before
+  the move (`Workspace.moveWithBoards`). See ARCHITECTURE §5 "Identity".
+- **Sharing:** the share record in `.lp/` is untrusted (anyone could have written it). Publish,
+  update or delete only when `shareIsTrusted`; grants live in preferences
+  (`Workspace.authorizeShare`), keyed by path, board ID and the page's `grantKey` (a gist's ID as
+  before; `gdrive:<account>/<id>` for a Drive page). Build links with `BoardShare.pageURL`, never
+  from the record. The decision itself is `ShareTrust.isTrusted` (pure, in `Boards/Model`): change
+  it only together with the `ownership` tests. Harness runs never read the real GitHub token
+  (`GistPublisher.token` is nil under the harness) — keep it so.
+- **Two services, one door:** everything goes through `SharingServices` (GitHub with the person's
+  token; Google Drive through the connected account's `DriveBackend`). `BoardShare` saves a gist
+  exactly as before (key `gistID`, no new keys) so older versions still read it; don't change
+  that. Drive asks only for `drive.file`, only when the person allows it; `OAuthTokens.scopes`
+  says what was granted. The Drive pages this Mac made or keeps up to date are listed per account
+  in preferences (`DrivePageRegistry`): a new page goes on the list right after its upload, before
+  it is made public (`DriveBackend.upload`, then `makePublic`); an adopted one when the person
+  chooses "Keep It Updated From Here" (`SharingServices.adopt`); and every page before an update
+  is sent (off again only on "not found") — keep that order, or a page can escape clean-up. Disconnecting a Google account always goes through `SharingServices.disconnect`
+  (Settings and the harness): it stops new Drive work for the account (`DriveWork`), waits for
+  work on its way, deletes the listed pages, then disconnects — all in one call, so nothing can
+  slip in between.
+  The demo account is named like a real one (`google:demo@example.com`) because Drive pages need
+  that. `LP_DRIVE_SELFTEST=1` (Debug builds, launched with `open -W -n --env …`) runs the whole
+  Drive check with a real connected account and prints a report.
+- Every change catches up with the disk first and writes before updating anything else; a board
+  that can't be read (`readFailure`, strict UTF-8 in `readText`) is never written.
 - Mutations must not read and write the same array element in one access (Swift exclusivity) —
   copy flags into locals first.
 - Scripted harness steps produce no events, so undo groups don't close by themselves; board steps
@@ -165,7 +292,30 @@ Harness steps worth knowing (full list in `Debug/SnapshotHarness.swift`):
   inclusive end is converted. Timed events are absolute instants.
 - Only the provider mappings are Foundation-only and tested; keep networking out of them.
 - Google needs an "iOS" OAuth client; Microsoft needs the "iOS / macOS" platform with redirect
-  `msauth.<bundle id>://auth`. No client secrets anywhere.
+  `msauth.<bundle id>://auth`. No client secrets anywhere. New sign-ins go to the person's own
+  client ID if set, else LP's (`AppRegistration.clientID`, `BuiltInRegistration` — Google's is set,
+  Microsoft's nil until LP registers there; `LP_DEMO_REGISTRATION=1` shows the registered screens in Debug builds).
+  Tokens remember their registration (`OAuthTokens.clientID`): refreshes, reconnecting at launch
+  and "Allow Google Drive…" use it — keep it so, since Drive pages belong to one registration.
+  Tokens saved by 1.0.0 are pinned to the registration they're first loaded with
+  (`OAuthTokens.pinned`). `GoogleCalendarProvider.connect(accept:)` decides about the account the
+  person chose after its last wait and before anything is saved for it, by the rules in
+  `ConnectionReplacement` (tested): "Allow Google Drive…" takes only its own account and never
+  moves it to another registration; Connect won't move an account whose Drive pages — or one
+  being made (`SharingServices.hasDriveWork`) — need its registration; and neither replaces a
+  live connection while Drive work runs through it (installing a provider retires the old one's
+  sign-in mid-request). A refused sign-in is discarded, never revoked —
+  revoking a shared registration's grant can end that account's access on another Mac. Google's sign-in always passes
+  `include_granted_scopes` (connecting again keeps Drive), and `login_hint` when allowing Drive for
+  one account; a 403 that says an API isn't turned on becomes `CalendarSyncError.serviceDisabled`.
+- "Too many requests" (`RateLimit.retryDate`) becomes `CalendarSyncError.rateLimited` /
+  `SharingError.rateLimited`, and the wait goes into `ServicePause` — per calendar account
+  (`OAuthTokenStore.pauseKey`; a sign-in still finding its account has its own) and per GitHub
+  token (a fingerprint of it). `AuthorizedClient`, the token refresh and `GistPublisher.send` check
+  it right before **every** network call — again after any `await` — so keep all requests going
+  through them; a later, shorter answer never shortens a wait. A 403 is a limit only with `Retry-After`, a used-up
+  allowance, Google's rate-limit reason or GitHub's "rate limit" message — any other 403 is a real
+  "not allowed". Automatic share updates retry at most 3 times after a limit.
 
 **Type, settings and menus**
 - Interface fonts use `Font.lp(size:)` (follows the interface size); the editor's type comes only
@@ -193,16 +343,90 @@ Harness steps worth knowing (full list in `Debug/SnapshotHarness.swift`):
 - Two `ForEach` rows with the same id in one lazy stack collide; give repeated items distinct ids.
 - The Markdown engine stays Foundation-only; add a test for every parser/serializer change. The
   bar is byte-for-byte round-trips of untouched text (the realistic-notes fuzz checks it).
-- Paths from note content or links go through `PathSafety`; links through `LinkSafety`.
+- Paths from note content or links go through `PathSafety`; links through `LinkSafety`. Writes
+  also check `PathSafety.resolvesInside` (a folder inside the workspace can be a link elsewhere).
+- Leaving a page (navigation, Back/Forward, switching or closing the workspace, trashing,
+  quitting) must go through `AppModel.leavePage()` / `PageSession.closeSavingChanges()`: edits that
+  can't be saved are kept in `Application Support/LP/Recovered`, and if even that fails the page
+  stays open. Never drop a session without it. A closed session is never reused.
+- Harness runs that test save conflicts leave copies in
+  `~/Library/Application Support/LP/Recovered` (the harness isn't sandboxed); delete them by
+  their literal path afterwards.
+- In Swift, `"\r\n"` is one `Character`: `split(separator: "\n")` doesn't split Windows line
+  endings. Split `unicodeScalars` when lines must be kept exactly.
+
+**Website**
+- Google's review reads the home page: whatever the design, keep the name LP, what LP does, each
+  permission with what LP does with it, the Limited Use statement (word for word) and links to
+  the privacy policy and terms; never touch the `google….html` Search Console file: `google9ca82f03251b9bc1.html`, for
+  ltf.dev.supp@gmail.com, the site's only verified owner since 2026-11-20 (one email as owner, the owner's choice).
+- The pages' Content Security Policy allows only the site's own stylesheet and images: no
+  `style=` attributes, `<style>`, scripts or outside fonts (they would be blocked). Preview over
+  `python3 -m http.server --bind 127.0.0.1` in the site folder, not `file://` (`'self'` doesn't
+  match file URLs).
+- WebKit pauses CSS animations in an off-screen window, so captures of the site need animations
+  off; headless Chrome left an async-decoded image blank while it animated, so the hero image
+  isn't `decoding="async"`. `404.html` links from the root (`/…`) because it answers at any address.
+- `make-site-shots.sh` crops in 2560 × 1600 Retina pixels: when LP's look changes, run it again and
+  look at every crop (the calendar starts at Wednesday's column, the progress panel ends between
+  its rows of numbers, the search palette and the slash menu are cut along their own borders).
+- Every feature on the site must work for someone who downloads LP: the widgets aren't shown
+  because released builds are signed ad hoc, so they need setting up (README).
+
+**Updates**
+- See CODEX.md §12 "In-app updates". In short: only the helper (unsandboxed) may decide about
+  LP's folder; the app's sandbox reports any outside folder as unwritable. `NSApp.delegate` isn't
+  `AppDelegate` under SwiftUI's adaptor — reach the model through `updater.app`. End-to-end test:
+  build two Debug apps with `CURRENT_PROJECT_VERSION=100/200`, serve `releases.json`, the zip and a
+  test-key-signed `update.json` on `http://127.0.0.1:8765`, then `open -n --env LP_UPDATE_FEED=…
+  --env LP_UPDATE_TEST_KEY=… --env LP_UPDATE_AUTOINSTALL=1` the old one; it logs to
+  `~/Library/Containers/LTF.Local-Productivity/Data/tmp/LP-update-test.log`. Unregister the test
+  copies (`lsregister -u`) and delete that log afterwards.
 
 **Docs and releases**
+- macOS shows LP's icon in notification banners (and elsewhere) from whichever copy Launch Services
+  has registered for `LTF.Local-Productivity`; old builds with an older icon win easily. Unregister
+  stale copies (`lsregister -u <path>`; list them from `lsregister -dump`), `lsregister -f` the current
+  app, then `killall NotificationCenter iconservicesagent` (done 2026-11-20: 17 registered → 2; the owner confirmed on 2026-11-21 that a test notification shows the bear). Old
+  bundles stay on disk and can register again when Finder or Spotlight finds them; if the old icon
+  returns, archive them (zipped, keeping rollback copies) rather than only unregistering.
+- Screenshots in the guide or README that show the app icon (the welcome screen) must be retaken
+  when the icon changes.
+- Brand sources and the renderer live in the separate sibling **`../LP Design/brand/`**, never
+  in the app source tree. Do not recreate `design/` or `Scripts/make-icon.swift`. Current identity:
+  **08 Orbit Bear**, chosen by the owner on 20 November 2026: charcoal bear, cyan headset,
+  round ears, small eyes/nose/smile and soft red cheeks. Full bear/ring at 64 px and above;
+  dedicated 16/32 masters use the head enlarged 40%, bold headset/face and no body/ring. The same
+  head is used for the logos and 120 px Google branding PNG. 07/09 and the older archives remain
+  explorations. The existing 824-unit macOS tile/shadow is preserved. Dark logo variants are transparent silver-charcoal
+  with off-white LP letters on dark backgrounds; the face and cyan pads stay consistent.
+- Render with `swift "../LP Design/brand/make-icon.swift" --app .`, then refresh the local website
+  with `python3 Scripts/make-site.py`. Brand root is the script's own folder; default app root is
+  `../Local Productivity` relative to `LP Design`. If Swift's cache is blocked, insert
+  `-module-cache-path /tmp/lp-brand-module-cache` after `swift`. Keep selected large/small masters
+  in sync (`--check` checks this). Never re-render archived SVGs/PNGs.
+- The renderer preflights all output parents against four exact brand/app folders after resolving
+  symlinks, refuses symlink destination files, and validates all ten exact catalog PNG slots before
+  writing. Keep that check before the write loop; `--self-test-guards` passes 26 temporary-fixture
+  cases, including two wrong-root outputs. Every rejected batch must stay unchanged. Never write
+  Contents.json from a catalog-supplied filename. No destination may be a source or archive file.
+- In the builder Codex's sandbox, macro-dependent tests and the harness build fail with malformed
+  `swift-plugin-server` responses, and safety's file-type tests see dynamic UTTypes (14 failures).
+  That's the sandbox, not LP: the builder reports them and never "fixes" code for them; Claude runs
+  the tests, the harness and the guide PDF outside it.
 - The user guide is printed by WebKit, which ignores `break-after: avoid` and misplaces floats
   that cross a page: a script in `guide.html` keeps headings with what follows, and figures beside
   text use `.aside` blocks. After any change, render the pages to PNGs and look at all of them.
 - PDFKit's writer (macOS 27) drops bookmarks and saves link targets without their page;
   `make-user-guide.swift` writes the final PDF with Core Graphics instead.
 - The formatting-bar screenshot needs `focus` before `select:` and a wait, or the bar isn't up.
-- Release notes are the version's `## <version>` entry in `CHANGELOG.md` — write it before releasing.
+- Release notes are the version's `## <version>` entry in `CHANGELOG.md` — write it before the
+  beta (a beta uses its version's entry).
+- Set `MARKETING_VERSION` before the beta: the official release is refused if any app file — the
+  project included — differs from the newest beta's, and it publishes the beta's own zip
+  (downloaded from the beta's release), not a new build.
+- The test suites compile only Foundation files; `boards` and `ownership` also compile
+  `Workspace/Safety.swift` (for `ShareGrantKey`).
 
 ## Design rules
 
