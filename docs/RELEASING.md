@@ -94,6 +94,13 @@ found") and says so; nothing else is affected.
 
 ## Before the repository goes public
 
+**Done on 2026-11-23** (option C, agreed with the owner and Codex): the private repository was
+renamed `local-productivity-archive` (kept private, history intact, plus a git bundle in
+`../Release backups/Before going public 2026-11-23/`); a new public repository took the original
+name with two commits — `LP 1.0.0` (tag `v1.0.0`, its release re-created with the original zip and
+guide) and `LP 1.0.1-beta.1` — both as the noreply identity; private vulnerability reporting is on.
+The list below is what was checked.
+
 Only when the owner says so — and first, with them:
 
 - **Commit history:** every commit shows its author's name and email address. Since 20 November

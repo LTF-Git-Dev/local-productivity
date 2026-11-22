@@ -26,7 +26,7 @@ The owner's standing rules (full text in `CLAUDE.md`):
   rolled back. Full steps: `docs/RELEASING.md`.
 - **The security checklist before any version is finalized** — `docs/SECURITY_CHECKLIST.md`: look
   into every point whose condition applies, fix what is found, record the result.
-- **The repository stays private** until the owner says it can be public.
+- **The repository is public** (since 2026-11-23): commit only as GitHub's noreply identity, and never push the private archive's history here.
 - **Every session updates the documentation** — `CHANGELOG.md`, `README.md`, the user guide PDF,
   `CLAUDE.md`, `AGENTS.md`, `CODEX.md` and `docs/` — to match what happened in it.
 - **Codex reviews every finished task** — through Herdr, in the panel to the right of Claude —

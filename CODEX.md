@@ -40,7 +40,7 @@ the user's files.**
 | Targets | `Local Productivity` → **LP.app** (bundle ID `LTF.Local-Productivity`); `LPWidgetsExtension` → widget extension (`LTF.Local-Productivity.Widgets`) |
 | Versions | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` at **project level** (both targets share them) |
 | Signing | Ad hoc ("Sign to Run Locally") unless `LP_TEAM_ID` is set; sandboxed, hardened runtime, no `get-task-allow` in Release |
-| Repository | `github.com/LTF-Git-Dev/local-productivity` — one repository, private until the owner says it can be public; remote `origin`, `gh` authenticated |
+| Repository | `github.com/LTF-Git-Dev/local-productivity` — public since 2026-11-23 with a fresh history (the earlier private history is the private `local-productivity-archive`; never push it here); remote `origin`, `gh` authenticated |
 | Branches | `main` = the official release; work on `feature/…` or `fix/…` |
 | Releases | GitHub Releases with the app zip and the user guide, via `Scripts/deploy.sh` only: **a beta first** (a pre-release from the branch, after the owner's yes), **official** (from `main`, marked Latest) only once the owner confirmed the beta — see `docs/RELEASING.md`. First release **1.0.0** (2026-11-18); notes come from `CHANGELOG.md` |
 
@@ -446,7 +446,7 @@ runs before any version is finalized.
    exactly the newest beta. Both refuse to continue until the official release being replaced is
    published with its app — the way back is always kept.
 9. Roll back with `Scripts/rollback.sh`. Never force-push, delete tags or delete releases unless
-   the owner asks for exactly that. The repository stays private until the owner says otherwise.
+   the owner asks for exactly that. The repository is public: commit only as GitHub's noreply identity.
 
 ## 11. Recipes
 
