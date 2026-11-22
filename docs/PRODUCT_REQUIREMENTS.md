@@ -197,9 +197,11 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 1. **Shipped in 1.0.0 (2026-11-18), the first release:** everything marked ✅ above — the editor,
    Home and search, the calendar with Apple, Google and Microsoft sync, boards with tracking,
    sharing and templates, reminders, widgets, text controls, macOS 15–27 — and the user guide.
-2. **Next release (on `feature/codex-review`, waiting for the owner):** the fixes from Codex's
-   review of the whole code base — no lost work, board identity, sharing permissions (BD-17,
-   BD-18, "No lost work").
+2. **1.0.1 — beta since 2026-11-23** (`release/1.0.1-beta.1`; official once the owner confirms
+   it): in-app updates, Google Drive sharing, full calendar sync, least-privilege permissions, the
+   new icon, the open-source licence and policies, and the fixes from Codex's reviews. Then, once
+   Google approves LP: one-click Google Connect (a small update through the in-app updater).
+   Microsoft one-click when LP can register with Microsoft.
 3. **1.1:** backlinks and an outline for the open page; update links on rename; week view.
 4. **Then:** in-place tables; code syntax colouring; card assignees; page templates.
 5. **Later:** iCloud-based sharing; quick capture from the menu bar; interactive widgets.
