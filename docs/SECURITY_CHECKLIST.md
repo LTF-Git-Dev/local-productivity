@@ -159,6 +159,21 @@ request, the record untouched), then allowed (`share-trust ;; share-update` → 
 
 ## Record
 
+### v1.0.1 — 23 November 2026 (re-check before the official release)
+
+The official 1.0.1 is the beta's own app (`v1.0.1-beta.1`, tested by the owner, who confirmed it
+works); no app file changed since the beta (`deploy.sh` refuses otherwise), only documentation.
+
+| # | Result | Found, and what was done |
+|---|---|---|
+| 1 Secrets | ✅ | No token-, key- or secret-shaped strings in the repository (scan on 2026-11-23); the public repository's history is fresh and has only the noreply identity; the app is ad-hoc signed (no name or email). |
+| 2 Ownership | ✅ | Unchanged since the beta's record below. |
+| 3 Database rules | ✅ n/a | No database. |
+| 4 Mass assignment | ✅ | Unchanged since the beta. |
+| 5 Payments | ✅ n/a | None. |
+| 6 Rate limits | ✅ | Unchanged since the beta. |
+| 7 Prove it | ✅ | `ownership` 29 passed, 0 failed (2026-11-23). |
+
 ### v1.0.1-beta.1 — 22 November 2026 (re-check before the beta)
 
 Branch `release/1.0.1-beta.1` (on `feature/in-app-updates`), adding in-app updates and holding back

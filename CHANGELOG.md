@@ -9,6 +9,49 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+Nothing yet.
+
+## 1.0.1 — 2026-11-23
+
+### New
+- **Update LP from inside the app.** LP checks for a new version once a day (Settings → General →
+  Updates) or when you choose **LP → Check for Updates…**, then installs it and restarts with one
+  click. Only updates signed by LP's maker are installed.
+- **Share a board to your own Google Drive** as a Google Doc anyone with its link can read. LP can
+  see only the Docs it creates or that you let this Mac keep up to date. For now it needs a
+  direct Google connection with your own client ID, with the Google Drive API turned on in its
+  Google Cloud project (Settings → Calendars → Use Your Own Client ID).
+- **Google and Outlook calendars sync in full**, from a year ago to two years ahead, about every
+  half hour while LP runs.
+- **A new icon:** the Orbit Bear.
+
+### Coming soon
+- One-click **Connect Google Account…**: Google is still reviewing LP. Until then, add your Google
+  account in System Settings → Internet Accounts to see its calendars through Apple Calendar, or use
+  your own client ID (Settings → Calendars → Use Your Own Client ID).
+
+### Better
+- LP asks Google and Microsoft for less: for Google, your list of calendars and their events, not
+  the right to change who they're shared with; for Outlook, your calendars, not your profile. LP
+  uses it only to show your calendars and change events you edit. Disconnecting removes the
+  sign-in and events LP kept on your Mac and asks Google to end LP's access (to be sure, and for
+  Microsoft, also remove LP in your account's list of connected apps). Docs you shared are deleted
+  first, unless you choose Disconnect Anyway.
+- When Google, Microsoft or GitHub says "slow down", LP waits as asked.
+- ⌘K search keeps pages whose name only partly matches.
+- Many fixes from a full code review: no lost edits when you leave a page, safer board sharing,
+  reminders and tasks.
+- LP is open source under the MIT License, with a privacy policy, terms and an accessibility
+  statement.
+
+## 1.0.1 — development log
+
+How 1.0.1 was made, session by session (2026-11-18 → 2026-11-23): what changed, on which
+branch, and what Codex found. The release notes above are what people see; this is for maintainers.
+The branches named here are in the private archive (`local-productivity-archive`).
+
+- 2026-11-23 — **1.0.1 released as the official version**, after the owner tested the beta and
+  confirmed it works: `release/1.0.1-beta.1` merged into `main`; the release is the beta's own app.
 - 2026-11-23 — **Ready for the next session and for contributors:** a fresh clone of the public
   repository builds and passes all 993 tests; README's Development section says where to start
   (and its test count is current); repository topics added; LP Design (brand sources) backed up to
@@ -370,39 +413,6 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
     is a link elsewhere.
 
   Tests: 777 checks in seven suites (a new `tasks` suite).
-
-## 1.0.1
-
-### New
-- **Update LP from inside the app.** LP checks for a new version once a day (Settings → General →
-  Updates) or when you choose **LP → Check for Updates…**, then installs it and restarts with one
-  click. Only updates signed by LP's maker are installed.
-- **Share a board to your own Google Drive** as a Google Doc anyone with its link can read. LP can
-  see only the Docs it creates or that you let this Mac keep up to date. In this beta it needs a
-  direct Google connection with your own client ID, with the Google Drive API turned on in its
-  Google Cloud project (Settings → Calendars → Use Your Own Client ID).
-- **Google and Outlook calendars sync in full**, from a year ago to two years ahead, about every
-  half hour while LP runs.
-- **A new icon:** the Orbit Bear.
-
-### Coming soon
-- One-click **Connect Google Account…**: Google is still reviewing LP. Until then, add your Google
-  account in System Settings → Internet Accounts to see its calendars through Apple Calendar, or use
-  your own client ID (Settings → Calendars → Use Your Own Client ID).
-
-### Better
-- LP asks Google and Microsoft for less: for Google, your list of calendars and their events, not
-  the right to change who they're shared with; for Outlook, your calendars, not your profile. LP
-  uses it only to show your calendars and change events you edit. Disconnecting removes the
-  sign-in and events LP kept on your Mac and asks Google to end LP's access (to be sure, and for
-  Microsoft, also remove LP in your account's list of connected apps). Docs you shared are deleted
-  first, unless you choose Disconnect Anyway.
-- When Google, Microsoft or GitHub says "slow down", LP waits as asked.
-- ⌘K search keeps pages whose name only partly matches.
-- Many fixes from a full code review: no lost edits when you leave a page, safer board sharing,
-  reminders and tasks.
-- LP is open source under the MIT License, with a privacy policy, terms and an accessibility
-  statement.
 
 ## 1.0.0 — 2026-11-18
 

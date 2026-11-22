@@ -8,7 +8,7 @@ away from their owner.
 |---|---|
 | Owner | LTF |
 | Platform | macOS 15 Sequoia or later (also 26 Tahoe and 27), Apple silicon and Intel; native SwiftUI + AppKit, with a WidgetKit extension |
-| Current version | **1.0.0** — the first release (2026-11-18); **1.0.1-beta.1** published for testing (2026-11-23) |
+| Current version | **1.0.1** (2026-11-23); the first release was 1.0.0 (2026-11-18) |
 | Repository | github.com/LTF-Git-Dev/local-productivity (private) |
 | Status of this document | Living — update it whenever a feature ships, changes or is cut |
 
@@ -130,8 +130,8 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 | BD-14 | **New boards from templates** (Simple, Project, Weekly, Content, Bugs) with a name and folder — one board per project | ✅ |
 | BD-15 | Lists resize with the window; the progress panel sits beside the lists or floats when narrow | ✅ |
 | BD-16 | Card assignees, covers and attachments | ⬜ |
-| BD-17 | **A board keeps its identity**: renaming or moving it (in LP or elsewhere) keeps its history and sharing; copies (duplicated in LP, or copied in Finder or Obsidian) get their own, so nothing on a copy reaches the original's history or shared page | ✅ 1.0.1 (beta; built on `feature/codex-review`) |
-| BD-18 | **Only this Mac's shared pages are updated**: a share record found in the folder (from another Mac, LP 1.0.0, or whoever the folder came from) changes nothing until the person chooses *Keep It Updated From Here* | ✅ 1.0.1 (beta; built on `feature/codex-review`) |
+| BD-17 | **A board keeps its identity**: renaming or moving it (in LP or elsewhere) keeps its history and sharing; copies (duplicated in LP, or copied in Finder or Obsidian) get their own, so nothing on a copy reaches the original's history or shared page | ✅ 1.0.1 (built on `feature/codex-review`) |
+| BD-18 | **Only this Mac's shared pages are updated**: a share record found in the folder (from another Mac, LP 1.0.0, or whoever the folder came from) changes nothing until the person chooses *Keep It Updated From Here* | ✅ 1.0.1 (built on `feature/codex-review`) |
 
 ### 5.6 Reminders and notifications
 
@@ -197,8 +197,7 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 1. **Shipped in 1.0.0 (2026-11-18), the first release:** everything marked ✅ above — the editor,
    Home and search, the calendar with Apple, Google and Microsoft sync, boards with tracking,
    sharing and templates, reminders, widgets, text controls, macOS 15–27 — and the user guide.
-2. **1.0.1 — beta since 2026-11-23** (`release/1.0.1-beta.1`; official once the owner confirms
-   it): in-app updates, Google Drive sharing, full calendar sync, least-privilege permissions, the
+2. **Shipped in 1.0.1 (2026-11-23):** in-app updates, Google Drive sharing, full calendar sync, least-privilege permissions, the
    new icon, the open-source licence and policies, and the fixes from Codex's reviews. Then, once
    Google approves LP: one-click Google Connect (a small update through the in-app updater).
    Microsoft one-click when LP can register with Microsoft.

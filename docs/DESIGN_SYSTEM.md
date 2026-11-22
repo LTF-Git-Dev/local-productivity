@@ -212,7 +212,7 @@ Capture with the snapshot harness and look at every image:
 ## 11. Brand
 
 **The owner chose 08 — Orbit Bear on 20 November 2026.** It is LP's identity, shipped in
-1.0.1-beta.1: a compact charcoal teddy with round ears, small eyes, silver muzzle,
+1.0.1: a compact charcoal teddy with round ears, small eyes, silver muzzle,
 gentle smile, rosy cheeks, one light cyan headset and a circular progress ring. **07 Focus Bear**
 and **09 Desk Bear** remain explorations; 07 is no longer installed or the current recommendation.
 
