@@ -1,6 +1,6 @@
 # Connected accounts
 
-*Last updated: 20 November 2026*
+*Last updated: 22 November 2026*
 
 LP keeps your notes on your Mac. It only talks to other services you connect yourself. This page
 explains, for each one, what LP can do, what it takes, where that goes, and how to remove access.

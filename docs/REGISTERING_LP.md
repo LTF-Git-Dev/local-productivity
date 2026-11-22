@@ -1,6 +1,6 @@
 # Registering LP with Google and Microsoft
 
-*For the maintainer. Last updated: 20 November 2026.*
+*For the maintainer. Last updated: 22 November 2026.*
 
 LP itself is registered with Google (since 20 November 2026), so **Connect Google Account…** will
 work without any setup — but until Google approves LP, builds don't use that registration for new

@@ -9,6 +9,10 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+- 2026-11-23 — **Docs brought up to date** after the beta and going public: the user guide's cover
+  says 1.0.1 (PDF rebuilt and re-attached to the beta's release); README tells first-time users
+  how to open LP (Privacy & Security → Open Anyway); PRD current version, document dates.
+
 - 2026-11-23 — **v1.0.1-beta.1 published** (GitHub pre-release from `release/1.0.1-beta.1`, at the
   owner's yes); checked signed-out: listed by the API, `update.json` signature valid, zip checksum
   matches.

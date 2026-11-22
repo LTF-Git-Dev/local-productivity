@@ -8,7 +8,7 @@ away from their owner.
 |---|---|
 | Owner | LTF |
 | Platform | macOS 15 Sequoia or later (also 26 Tahoe and 27), Apple silicon and Intel; native SwiftUI + AppKit, with a WidgetKit extension |
-| Current version | **1.0.0** — the first release (2026-11-18) |
+| Current version | **1.0.0** — the first release (2026-11-18); **1.0.1-beta.1** published for testing (2026-11-23) |
 | Repository | github.com/LTF-Git-Dev/local-productivity (private) |
 | Status of this document | Living — update it whenever a feature ships, changes or is cut |
 
