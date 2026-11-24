@@ -63,9 +63,15 @@ server.sendRequest = { request in
     message["id"] = id
     send(MCPServer.line(message))
     while let line = readLine(strippingNewline: true) {
-        if let reply = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
-           reply["method"] == nil, reply["id"] as? String == id {
-            return reply
+        let message = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any]
+        if let message, message["method"] == nil, message["id"] as? String == id {
+            return message
+        }
+        // The tool call that is asking was cancelled: stop waiting (the form may never be answered).
+        if let message, message["method"] as? String == "notifications/cancelled",
+           let cancelled = (message["params"] as? [String: Any])?["requestId"], let current = server.currentRequestID,
+           "\(cancelled)" == "\(current)" {
+            return ["cancelled": true]
         }
         pending.append(line)
     }

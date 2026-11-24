@@ -70,6 +70,10 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
 
 ## Known limits
 
+- The workspace you choose lasts for the LP server's life. Claude Code starts a separate one for
+  every session, so each session asks you again. The Claude desktop app may share one between its
+  chats — there, a choice made in one chat can apply in another until you quit Claude (or the
+  chat asks to switch and you choose again).
 - A program that writes into a page it opened earlier, in place (for example Vim with
   `backupcopy=yes`), at the very moment Claude saves the same page, can lose that write. LP and
   Obsidian save whole files and aren't affected.

@@ -112,8 +112,12 @@ nonisolated final class MCPServer {
                 let text = "\(name) has no argument \(unknown.map { "“\($0)”" }.joined(separator: ", ")). It takes: \(tool.properties.keys.sorted().joined(separator: ", "))."
                 return Self.encode(result: ["content": [["type": "text", "text": text]], "isError": true], id: id)
             }
+            currentRequestID = id
+            defer { currentRequestID = nil }
             do {
                 return Self.encode(result: ["content": [["type": "text", "text": try call(name, Arguments(arguments))]], "isError": false], id: id)
+            } catch is Cancelled {
+                return nil   // a cancelled request gets no answer
             } catch {
                 return Self.encode(result: ["content": [["type": "text", "text": "\(error)"]], "isError": true], id: id)
             }
@@ -162,6 +166,7 @@ nonisolated final class MCPServer {
             ],
         ]]
         guard let reply = sendRequest(request) else { throw VaultError("The person wasn’t asked (no answer came back), so no workspace was chosen.") }
+        if reply["cancelled"] as? Bool == true { throw Cancelled() }
         guard let result = reply["result"] as? [String: Any] else {
             throw VaultError("The Claude app couldn’t show the choice (\(((reply["error"] as? [String: Any])?["message"] as? String) ?? "no reason given")), so no workspace was chosen.")
         }
@@ -169,8 +174,18 @@ nonisolated final class MCPServer {
               let workspace = content["workspace"] as? String else {
             throw VaultError("The person didn’t choose a workspace (\(result["action"] as? String ?? "no answer")), so nothing in LP was used. Ask them if they’d like to choose one.")
         }
+        // An absent or empty folder is the whole workspace (as the form says); anything else must be text.
+        if let folder = content["folder"], !(folder is NSNull), !(folder is String) {
+            throw VaultError("The answer’s folder wasn’t text, so no workspace was chosen.")
+        }
         return (workspace, (content["folder"] as? String) ?? "")
     }
+
+    /// The tool call was cancelled by the Claude app while the person was being asked.
+    struct Cancelled: Error {}
+
+    /// The id of the request being handled (so a cancellation for it can be recognised).
+    private(set) var currentRequestID: Any?
 
     // MARK: - Arguments
 
@@ -257,6 +272,9 @@ nonisolated final class MCPServer {
 
         case "lp_use_workspace":
             let suggested = (try a.optionalString("workspace"), try a.optionalString("folder"))
+            // A new choice starts from nothing: declining it, or any failure, leaves no workspace in use.
+            vault = nil
+            scope = nil
             let choice: (workspace: String, folder: String)
             if clientCanAsk, let sendRequest {
                 choice = try askPerson(suggested: suggested, sendRequest)

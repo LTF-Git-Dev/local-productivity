@@ -156,6 +156,17 @@ let chosen = choose(root.lastPathComponent)
 check(!chosen.error, "the person's choice is used: \(chosen.text)")
 check(((tool("lp_list_workspaces").json["chosen"] as? [String: Any])?["workspace"] as? String) == root.lastPathComponent, "and reported as chosen")
 
+// Switching starts from nothing: declining a new choice leaves no workspace in use.
+check(choose(second.lastPathComponent, action: "decline").error, "a later choice is declined")
+check(tool("lp_list_pages").text.contains("asks the person directly"), "and the earlier workspace is no longer in use")
+nextAnswer = ["jsonrpc": "2.0", "id": "lp-ask-1", "result": ["action": "accept", "content": ["workspace": root.lastPathComponent, "folder": 5]]]
+check(tool("lp_use_workspace").text.contains("wasn’t text"), "a folder answer that isn't text grants nothing")
+check(tool("lp_list_pages").text.contains("asks the person directly"), "still nothing in use")
+nextAnswer = ["cancelled": true]
+let cancelledCall = send("tools/call", ["name": "lp_use_workspace", "arguments": [:]])
+check(cancelledCall == nil, "a call cancelled while asking gets no answer")
+check(!choose(root.lastPathComponent).error, "and the person can choose again")
+
 // Apps that can't show a form: refused — unless LP was started to accept the choice from the chat.
 let noForms = try! MCPServer(workspaces: [root])
 _ = noForms.handle(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
