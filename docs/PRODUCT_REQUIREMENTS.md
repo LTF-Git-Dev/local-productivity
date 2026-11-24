@@ -142,7 +142,7 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 | NT-3 | Alerts before timed calendar events (off, at start, 5–60 minutes); Apple Calendar events only when asked (Calendar already alerts for them) | ✅ |
 | NT-4 | A morning summary of what is due, overdue and on the calendar; skipped on empty days | ✅ |
 | NT-5 | Reminders arrive while LP is closed; planned a week ahead within macOS's 64-notification limit | ✅ |
-| NT-6 | Settings → Notifications: permission state, test notification, options, and the reminders actually waiting | ✅ |
+| NT-6 | Settings → Notifications: an on/off switch for all reminders (off cancels everything waiting), permission state, options, and the reminders actually waiting | ✅ |
 
 ### 5.7 Widgets
 
