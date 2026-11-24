@@ -59,9 +59,9 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 - **Notifications on/off switch** at the top of Settings → Notifications. Off cancels every reminder
   and snooze LP has waiting, at once; on plans them again. Your
   choices for what to be reminded about are kept. Notifications already shown stay.
-- **Fixed (1.0.3-beta.1 only):** with Notifications switched off, quitting LP or installing an update
-  could freeze LP. If that happens while updating from beta 1, force-quit LP (⌥⌘Esc) and open it
-  again — the update is already installed.
+- **Fixed (1.0.3-beta.1 only):** after installing an update from inside LP, beta 1 could freeze
+  instead of restarting. If that happens while updating from beta 1, force-quit LP (⌥⌘Esc) and open
+  it again — the update is already installed.
 
 ## 1.0.2 — 2026-11-25
 
