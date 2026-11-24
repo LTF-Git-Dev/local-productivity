@@ -171,14 +171,19 @@ nonisolated enum ClaudeSetup {
         "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// Connects this workspace — unless LP is already connected (it says how to replace that rather
-    /// than replacing it), and only once the download flag macOS puts on the helper is gone (it would
-    /// block the helper). Messages contain no apostrophes, as they sit in single quotes.
+    /// Connects this workspace — unless LP is already connected in any scope (it shows that connection
+    /// and how to replace it, rather than replacing it), only while the helper is still there, and
+    /// only once the download flag macOS puts on it is gone (it would block the helper). Messages
+    /// contain no apostrophes, as they sit in single quotes.
     static func command(helper: String, workspace: String) -> String {
         let tool = shellQuoted(helper)
         return "if claude mcp get lp >/dev/null 2>&1; then "
-            + "echo 'LP is already connected to Claude Code. To connect this workspace instead, run: claude mcp remove --scope user lp - then paste this command again.'; "
-            + "elif xattr -p com.apple.quarantine \(tool) >/dev/null 2>&1 && ! xattr -d com.apple.quarantine \(tool); then "
+            + "echo 'LP is already connected to Claude Code, as shown below. To connect this workspace instead, remove it with: claude mcp remove lp --scope SCOPE (the scope shown) - then paste this command again.'; claude mcp get lp; "
+            + "elif [ ! -x \(tool) ]; then "
+            + "echo 'The LP helper is not where it was. Open LP from your Applications folder and copy the command again.'; "
+            + "elif ! lpflags=$(xattr \(tool)); then "
+            + "echo 'The LP helper could not be checked. Open LP from your Applications folder and copy the command again.'; "
+            + "elif printf '%s\\n' \"$lpflags\" | grep -qx com.apple.quarantine && ! xattr -d com.apple.quarantine \(tool); then "
             + "echo 'macOS still blocks the LP helper. Move LP to your Applications folder, open it from there and copy the command again.'; "
             + "else claude mcp add --scope user lp -- \(tool) --workspace \(shellQuoted(workspace)); fi"
     }

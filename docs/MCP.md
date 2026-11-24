@@ -106,7 +106,14 @@ claude mcp add --scope user lp -- /Applications/LP.app/Contents/Helpers/lp-mcp \
 claude mcp list                       # lp: ✓ Connected
 ```
 
-**Claude desktop app** — Settings → Developer → Edit Config, then add to
+**Claude desktop app** — first, once, in Terminal, clear the flag macOS puts on downloaded programs
+(it would block the helper):
+
+```sh
+xattr -d com.apple.quarantine /Applications/LP.app/Contents/Helpers/lp-mcp
+```
+
+Then in Claude: Settings → Developer → Edit Config, and add to
 `~/Library/Application Support/Claude/claude_desktop_config.json` and restart Claude:
 
 ```json

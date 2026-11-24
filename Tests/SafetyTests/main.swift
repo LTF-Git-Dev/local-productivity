@@ -108,6 +108,7 @@ check(setup.contains("--workspace '/Users/me/My Notes; echo hi'"), "the workspac
 check(setup.hasPrefix("if claude mcp get lp"), "an existing connection is never replaced silently")
 check(setup.contains("xattr -d com.apple.quarantine '/Applications/LP.app/Contents/Helpers/lp-mcp'"), "the helper's download flag is cleared")
 check(!setup.contains("mcp remove --scope user lp 2>"), "nothing is removed by the command itself")
+check(setup.contains("[ ! -x '/Applications/LP.app/Contents/Helpers/lp-mcp' ]"), "a missing helper is never registered")
 check(setup.contains("claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp'"), "then Claude Code is connected")
 
 print("\(passed) passed, \(failed) failed")
