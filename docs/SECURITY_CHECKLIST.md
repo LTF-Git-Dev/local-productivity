@@ -159,6 +159,15 @@ request, the record untouched), then allowed (`share-trust ;; share-update` → 
 
 ## Record
 
+### v1.0.3-beta.1 — 25 November 2026 (final testing before the beta)
+
+Changes: Settings one size (scrolls); Notifications on/off switch. No new data, network or file
+access; the switch only cancels LP's own pending notifications (`removeAllPendingNotificationRequests`
+— LP schedules nothing else). All 11 suites 0 failed (1,632), `ownership` 29 passed; Release build
+(1.0.3) signed ad hoc, passes the updater's strict signature check, secret scan clean, no personal
+email; `lp-mcp` universal and answering (17 tools). Codex clean after five rounds on the switch's
+timing (immediate off, one queue for updates/snoozes/cleanup, quit waits).
+
 ### v1.0.2 — 25 November 2026 (official)
 
 The beta's record below applies; since then only the Settings steps (shell-quoted commands, tested
