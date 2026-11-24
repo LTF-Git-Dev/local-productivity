@@ -112,3 +112,52 @@ nonisolated enum ShareGrantKey {
         return (String(head[..<middle]), String(head[head.index(after: middle)...]), String(key[key.index(after: last)...]))
     }
 }
+
+/// Writes a file's new contents safely (moved here from PageSession so the MCP server shares it).
+nonisolated enum SafeFileWriter {
+
+    /// Replaces a file's contents without ever leaving it half written, and without losing the
+    /// original's creation date, tags or other metadata.
+    static func write(_ data: Data, to url: URL) throws {
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: url.path) else {
+            try data.write(to: url, options: .atomic)
+            return
+        }
+        do {
+            let directory = try manager.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true)
+            let temporary = directory.appendingPathComponent(url.lastPathComponent)
+            defer { try? manager.removeItem(at: directory) }
+            try data.write(to: temporary)
+            _ = try manager.replaceItemAt(url, withItemAt: temporary)
+        } catch {
+            try data.write(to: url, options: .atomic)
+        }
+    }
+}
+
+/// How LP names a new page or folder file (shared by the app and the MCP server).
+nonisolated enum PageNaming {
+    static func sanitized(_ title: String) -> String? {
+        var name = title
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while name.hasPrefix(".") { name.removeFirst() }
+        if name.count > 200 { name = String(name.prefix(200)) }
+        return name.isEmpty ? nil : name
+    }
+
+    /// "Untitled", then "Untitled 2", "Untitled 3"… whichever is free in `directory`.
+    static func availableName(_ base: String, extension ext: String?, in directory: URL) -> String {
+        func fileName(_ stem: String) -> String { ext.map { "\(stem).\($0)" } ?? stem }
+        var candidate = fileName(base)
+        var counter = 2
+        while FileManager.default.fileExists(atPath: directory.appendingPathComponent(candidate).path) {
+            candidate = fileName("\(base) \(counter)")
+            counter += 1
+        }
+        return candidate
+    }
+}

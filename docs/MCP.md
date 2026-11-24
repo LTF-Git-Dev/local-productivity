@@ -1,0 +1,83 @@
+# LP for Claude (MCP)
+
+`lp-mcp` lets Claude — **Claude Code** and the **Claude desktop app** — read and change your LP
+workspace: pages, tasks and boards. It's a small program that works on the workspace folder
+directly, with LP's own code, so files stay exactly as LP and Obsidian write them. LP doesn't need
+to be open; when it is, it shows Claude's changes as they happen.
+
+It runs on your Mac only. Nothing goes to LP's makers; what Claude reads goes to Claude, as with
+anything you share in a conversation.
+
+## What Claude can do
+
+| Read | Write | Update |
+|---|---|---|
+| `lp_list_pages` — every page and board | `lp_create_page` — a new page (never replaces one) | `lp_replace_text` — change one exact passage of a page |
+| `lp_search` — by name and text, like ⌘K | `lp_append_to_page` — add to the end of a page | `lp_update_page` — rewrite a page (only the version it read) |
+| `lp_read_page` — a page's Markdown | `lp_daily_note` — today's (or any day's) note, created if needed | `lp_set_task_done` — tick a task off or reopen it |
+| `lp_list_tasks` — open/done tasks, soonest due first | `lp_create_board` — a board from LP's templates | `lp_update_card` — edit a card or move it to another list |
+| `lp_list_boards` — every board's progress | `lp_add_card` — a card on a board | |
+| `lp_read_board` — a board's lists and cards | | |
+
+Ask things like *"What's overdue?"*, *"Add 'call the printer, due Friday' to my Launch board"*, *"Put
+today's standup notes in my daily note"*, *"Move the press release card to Review"*.
+
+## Safety
+
+- Only `.md` and `.markdown` files **inside the workspace folder**: no `..`, absolute paths, hidden
+  folders (`.lp`, `.obsidian`, `.git`) or links leading outside it.
+- **Nothing is ever deleted.** A new page never replaces a file ("Plan 2" when "Plan" exists).
+- Files that aren't UTF-8 text, or are larger than 4 MB, are left alone.
+- **Boards change card by card only**, through LP's board code, so they stay valid Kanban boards.
+- Every write checks the file didn't change since it was read (LP may be editing it); rewriting a
+  whole page needs the revision Claude read, so it can't overwrite edits made meanwhile.
+- In Claude, every tool except the six reading ones asks for your approval unless you allow it.
+
+## Connect it
+
+Build it (once, and after each update of LP's code):
+
+```sh
+Scripts/build-mcp.sh                 # → .build/lp-mcp
+mkdir -p ~/.local/bin && cp .build/lp-mcp ~/.local/bin/lp-mcp
+```
+
+**Claude Code** — for every project (`--scope user`):
+
+```sh
+claude mcp add --scope user lp -- ~/.local/bin/lp-mcp --workspace "/path/to/your LP folder"
+claude mcp list                       # lp: ✓ Connected
+```
+
+**Claude desktop app** — Settings → Developer → Edit Config, then add to
+`~/Library/Application Support/Claude/claude_desktop_config.json` and restart Claude:
+
+```json
+{
+  "mcpServers": {
+    "lp": {
+      "command": "/Users/<you>/.local/bin/lp-mcp",
+      "args": ["--workspace", "/path/to/your LP folder"]
+    }
+  }
+}
+```
+
+If the workspace is in Documents or Desktop, macOS may ask once whether Claude (or your terminal)
+may access that folder: allow it.
+
+To disconnect: `claude mcp remove --scope user lp`, or delete the `lp` entry from the desktop config.
+
+## For maintainers
+
+- Code: `MCP/LPVault.swift` (every operation, on LP's Foundation-only code: `Markdown/`,
+  `Workspace/PageTasks.swift`, `Workspace/Safety.swift` — `PathSafety`, `SafeFileWriter`,
+  `PageNaming` — and `Boards/Model/`), `MCP/MCPServer.swift` (JSON-RPC 2.0 over stdio, one message
+  per line; the tool list), `MCP/main.swift`. No dependencies.
+- Tests: `Scripts/test.sh mcp` — the protocol, every tool, the safety rules, Obsidian format kept.
+  For a real client without installing anything:
+  `claude -p --strict-mcp-config --mcp-config <json> --allowedTools "mcp__lp__*" "…"` against a
+  throwaway folder.
+- Lists have no IDs in a board file, so tools name them by title; cards by their stored `^id`, or by
+  their title when the file has none yet (they get IDs the next time the board is changed).
+- Never: delete, write outside the workspace, touch hidden folders, or rewrite a board as text.

@@ -355,25 +355,3 @@ enum RecoveredCopies {
         }
     }
 }
-
-nonisolated enum SafeFileWriter {
-
-    /// Replaces a file's contents without ever leaving it half written, and without losing the
-    /// original's creation date, tags or other metadata.
-    static func write(_ data: Data, to url: URL) throws {
-        let manager = FileManager.default
-        guard manager.fileExists(atPath: url.path) else {
-            try data.write(to: url, options: .atomic)
-            return
-        }
-        do {
-            let directory = try manager.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true)
-            let temporary = directory.appendingPathComponent(url.lastPathComponent)
-            defer { try? manager.removeItem(at: directory) }
-            try data.write(to: temporary)
-            _ = try manager.replaceItemAt(url, withItemAt: temporary)
-        } catch {
-            try data.write(to: url, options: .atomic)
-        }
-    }
-}

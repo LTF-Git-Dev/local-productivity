@@ -2,7 +2,7 @@
 # Compiles and runs the standalone test suites. No Xcode project or simulator needed.
 #
 #   Scripts/test.sh            all suites
-#   Scripts/test.sh markdown   one suite: markdown | calendar | safety | widgets | reminders | tasks | search | updates | boards | ownership
+#   Scripts/test.sh markdown   one suite: markdown | calendar | safety | widgets | reminders | tasks | search | updates | boards | ownership | mcp
 #   LP_TEST_VERBOSE=1 Scripts/test.sh ownership   prints every ownership check (who may change what)
 
 ROOT="${0:A:h:h}"
@@ -74,5 +74,15 @@ run_suite ownership \
   "$SRC/Calendar/Sync/OAuthCore.swift" \
   "$SRC/../Shared/WidgetSnapshot.swift" \
   "$ROOT/Tests/OwnershipTests/main.swift"
+
+# LP's MCP server for Claude: the protocol, every tool, and its safety rules, on a throwaway workspace.
+run_suite mcp \
+  "$SRC/App/Day.swift" \
+  "$SRC/Markdown/"*.swift \
+  "$SRC/Workspace/PageTasks.swift" \
+  "$SRC/Workspace/Safety.swift" \
+  "$SRC/Boards/Model/"*.swift \
+  "$ROOT/MCP/LPVault.swift" "$ROOT/MCP/MCPServer.swift" \
+  "$ROOT/Tests/MCPTests/main.swift"
 
 exit $STATUS

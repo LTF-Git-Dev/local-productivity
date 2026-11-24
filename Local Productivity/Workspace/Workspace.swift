@@ -923,26 +923,9 @@ final class Workspace {
     // MARK: Names
 
     /// Makes a title safe to use as a file name. Returns nil when nothing usable is left.
-    static func sanitized(_ title: String) -> String? {
-        var name = title
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        while name.hasPrefix(".") { name.removeFirst() }
-        if name.count > 200 { name = String(name.prefix(200)) }
-        return name.isEmpty ? nil : name
-    }
+    static func sanitized(_ title: String) -> String? { PageNaming.sanitized(title) }
 
-    /// "Untitled", then "Untitled 2", "Untitled 3"… whichever is free in `directory`.
     static func availableName(_ base: String, extension ext: String?, in directory: URL) -> String {
-        func fileName(_ stem: String) -> String { ext.map { "\(stem).\($0)" } ?? stem }
-        var candidate = fileName(base)
-        var counter = 2
-        while FileManager.default.fileExists(atPath: directory.appendingPathComponent(candidate).path) {
-            candidate = fileName("\(base) \(counter)")
-            counter += 1
-        }
-        return candidate
+        PageNaming.availableName(base, extension: ext, in: directory)
     }
 }
