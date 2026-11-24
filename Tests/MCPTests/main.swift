@@ -565,6 +565,21 @@ check(!(tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).contains 
       "nothing inside a package (an .app) is listed")
 check(!allFiles().contains { ($0 as NSString).lastPathComponent.hasPrefix(".lp-mcp-") }, "creates and edits leave no hidden temporary files")
 
+// MARK: Review fixes (Codex round 4)
+
+write("ReadOnly.md", "keep me\n")
+chmod(root.appendingPathComponent("ReadOnly.md").path, 0o444)
+check(tool("lp_append_to_page", ["path": "ReadOnly.md", "content": "x"]).text.contains("read-only"), "a read-only page isn't changed")
+check(read("ReadOnly.md") == "keep me\n", "and keeps its text")
+check(((try? fm.attributesOfItem(atPath: root.appendingPathComponent("ReadOnly.md").path))?[.posixPermissions] as? Int) == 0o444, "and stays read-only")
+chmod(root.appendingPathComponent("ReadOnly.md").path, 0o644)
+write("Locked.md", "locked\n")
+check(chflags(root.appendingPathComponent("Locked.md").path, UInt32(UF_IMMUTABLE)) == 0, "Finder's Locked was set")
+check(tool("lp_replace_text", ["path": "Locked.md", "find": "locked", "replace_with": "open"]).text.contains("locked"), "a locked page isn't changed")
+check(read("Locked.md") == "locked\n", "and keeps its text")
+chflags(root.appendingPathComponent("Locked.md").path, 0)
+check(tool("lp_replace_text", ["path": "Locked.md", "find": "locked", "replace_with": "open"]).error == false, "once unlocked, it can be")
+
 // MARK: Nothing is ever deleted
 
 let before = allFiles()

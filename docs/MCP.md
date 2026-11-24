@@ -29,16 +29,17 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
   path is walked from the workspace folder itself, one folder at a time, so a folder swapped for a
   link can't redirect a read or a write.
 - **Nothing is ever deleted.** A new page never replaces a file ("Plan 2" when "Plan" exists).
-- Files that aren't UTF-8 text, or are larger than 4 MB, are left alone, and nothing is written
-  that would pass 4 MB.
+- Files that aren't UTF-8 text, larger than 4 MB, read-only or locked are left alone, and nothing
+  is written that would pass 4 MB.
 - **Boards change card by card only**, through LP's board code, so they stay valid Kanban boards;
   tags and titles can't inject lists or cards.
 - **A save made meanwhile isn't overwritten.** The new version is written beside the file and
   swapped in, in one step, and only over the version that was read: if LP, Obsidian or another
   editor saved in between, its version is swapped back and the change is made again on top of it;
   if two saves land in that moment, the extra one is kept next to the page as "… (conflict).md".
-  (The one case this can't cover: a program writing into a file it opened earlier, without
-  saving it anew — editors save whole files, so this doesn't apply to them.) Finder tags and
+  (Not covered: a program writing into the file it opened earlier, in place — for example Vim set
+  to `backupcopy=yes` — at the very moment Claude saves; LP and Obsidian save whole files.) Finder
+  tags and
   permissions stay — or the edit isn't made — and so does the creation date where the disk keeps one.
   New pages are written in full under a hidden name first, so a failed write never leaves half a page.
 - Changes to what's already there need the **revision** they were based on — rewriting a page

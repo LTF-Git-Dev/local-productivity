@@ -153,6 +153,14 @@ nonisolated final class AnchoredFiles {
         let folderFD = try openFolder(folder)
         defer { close(folderFD) }
         let (originalFD, original) = try openRegular(folderFD, name, path: path)
+        // A page that is read-only or locked (Finder's "Locked") stays as it is: replacing it with a
+        // new file would get round that.
+        guard faccessat(folderFD, name, W_OK, AT_EACCESS | AT_SYMLINK_NOFOLLOW) == 0,
+              original.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE) == 0 else {
+            close(originalFD)
+            throw VaultError("“\(path)” is read-only or locked, so it wasn’t changed.")
+        }
+        let before = Self.metadata(originalFD)
         let temporary = ".lp-mcp-\(UUID().uuidString).tmp"
         let fd = openat(folderFD, temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, original.st_mode & 0o777)
         guard fd >= 0 else {
@@ -194,13 +202,14 @@ nonisolated final class AnchoredFiles {
         // and could be read back to check — it is someone else's save.
         let hiddenPath = folder.isEmpty ? temporary : folder + "/" + temporary
         let limit = max(expected.count, data.count) + 1
-        if let displaced = try? read(hiddenPath, limit: limit), displaced == expected {
+        if let displaced = try? read(hiddenPath, limit: limit), displaced == expected,
+           metadataUnchanged(folderFD, temporary, since: before) {
             unlinkat(folderFD, temporary, 0)
             return .done
         }
         // Someone saved in between: put their version back.
         guard renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_SWAP)) == 0 else {
-            throw VaultError("“\(path)” changed while it was being written. Its other version is kept, hidden, as “\(hiddenPath)”.")
+            throw VaultError("“\(path)” changed while it was being written. One version is in the page, the other kept, hidden, as “\(hiddenPath)”.")
         }
         if let returned = try? read(hiddenPath, limit: limit), returned == data {
             unlinkat(folderFD, temporary, 0)
@@ -212,9 +221,45 @@ nonisolated final class AnchoredFiles {
         let short = String(UUID().uuidString.prefix(8))
         let candidates = (1...20).map { $0 == 1 ? "\(stem) (conflict).\(ext)" : "\(stem) (conflict \($0)).\(ext)" } + ["conflict-\(short).\(ext)"]
         for copy in candidates where renameatx_np(folderFD, temporary, folderFD, copy, UInt32(RENAME_EXCL)) == 0 {
-            throw VaultError("“\(path)” was saved by something else twice while it was being changed. Both are kept: the newest in the page, the other as “\(folder.isEmpty ? copy : folder + "/" + copy)”. Read the page again and redo the change.")
+            throw VaultError("“\(path)” was saved by something else more than once while it was being changed. Both versions are kept: one in the page, one as “\(folder.isEmpty ? copy : folder + "/" + copy)”. Compare them, then read the page again and redo the change.")
         }
-        throw VaultError("“\(path)” was saved by something else twice while it was being changed. The other version is kept, hidden, as “\(hiddenPath)”.")
+        throw VaultError("“\(path)” was saved by something else more than once while it was being changed. One version is in the page, the other kept, hidden, as “\(hiddenPath)”.")
+    }
+
+    /// What a file carries besides its text that an edit must keep: permissions, flags and
+    /// extended attributes (Finder tags among them).
+    struct Metadata: Equatable {
+        var mode: mode_t
+        var flags: UInt32
+        var attributes: [String: Data]
+    }
+
+    static func metadata(_ fd: Int32) -> Metadata? {
+        var info = stat()
+        guard fstat(fd, &info) == 0 else { return nil }
+        var attributes: [String: Data] = [:]
+        let size = flistxattr(fd, nil, 0, 0)
+        if size > 0 {
+            var names = [CChar](repeating: 0, count: size)
+            guard flistxattr(fd, &names, size, 0) == size else { return nil }
+            for name in names.split(separator: 0).map({ String(cString: Array($0) + [0]) }) {
+                let length = fgetxattr(fd, name, nil, 0, 0, 0)
+                guard length >= 0 else { return nil }
+                var value = [UInt8](repeating: 0, count: length)
+                guard fgetxattr(fd, name, &value, length, 0, 0) == length else { return nil }
+                attributes[name] = Data(value)
+            }
+        }
+        return Metadata(mode: info.st_mode & 0o7777, flags: info.st_flags, attributes: attributes)
+    }
+
+    /// Whether the file swapped out still carries what the original had when it was read.
+    private func metadataUnchanged(_ folderFD: Int32, _ name: String, since before: Metadata?) -> Bool {
+        guard let before else { return false }
+        let fd = openat(folderFD, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        return Self.metadata(fd) == before
     }
 
     // MARK: - Listing
@@ -231,9 +276,16 @@ nonisolated final class AnchoredFiles {
             guard depth < 64, let directory = fdopendir(fd) else { close(fd); complete = false; return }
             defer { closedir(directory) }
             var names: [String] = []
-            while let entry = readdir(directory) {
+            while true {
+                errno = 0
+                guard let entry = readdir(directory) else {
+                    if errno != 0 { complete = false }   // a read error, not the end of the folder
+                    break
+                }
                 let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
                 if !name.hasPrefix(".") { names.append(name) }
+                // shortcut: a folder this large isn't a notes folder; list what was found and say it's incomplete.
+                if names.count >= Self.maxEntriesPerFolder { complete = false; break }
             }
             for name in names.sorted() where !stopped {
                 var info = stat()
@@ -256,6 +308,9 @@ nonisolated final class AnchoredFiles {
         visitFolder(start, folder, depth: 0)
         return complete
     }
+
+    /// The most entries read from one folder.
+    static let maxEntriesPerFolder = 50_000
 
     /// Folders macOS shows as single files (apps, bundles, Pages documents…), skipped as LP does.
     static let packageExtensions: Set<String> = ["app", "bundle", "framework", "plugin", "kext", "pkg", "mpkg", "photoslibrary",
