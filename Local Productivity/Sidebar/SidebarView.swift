@@ -77,9 +77,7 @@ struct SidebarView: View {
                         }
                     }
 
-                    SidebarSectionHeader(title: "Pages") {
-                        app.newPage(in: "")
-                    }
+                    SidebarSectionHeader(title: "Pages", addsIn: "")
                     .background(isRootTargeted ? Color.accentColor.opacity(0.14) : .clear,
                                 in: RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous))
                     .onDrop(of: [UTType.plainText], isTargeted: $isRootTargeted) { providers in
@@ -110,14 +108,15 @@ struct SidebarView: View {
 
     private var footer: some View {
         HStack(spacing: 4) {
-            Button {
-                app.newPage()
+            // A click shows the choices (⌘N still makes a page straight away).
+            Menu {
+                NewItemButtons(folder: nil)
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
                         .font(.lp(size: 12, weight: .semibold))
                         .frame(width: 18)
-                    Text("New Page")
+                    Text("New")
                         .font(.lp(size: 13, weight: .medium))
                     Spacer(minLength: 0)
                 }
@@ -126,13 +125,10 @@ struct SidebarView: View {
                 .frame(height: Metrics.sidebarRowHeight)
                 .contentShape(Rectangle())
             }
+            .menuStyle(.button)
             .buttonStyle(SidebarButtonStyle())
-            .help("New Page  ⌘N")
-            .contextMenu {
-                Button("New Page", systemImage: "square.and.pencil") { app.newPage() }
-                Button("New Board…", systemImage: "rectangle.split.3x1") { app.newBoard() }
-                Button("New Folder", systemImage: "folder.badge.plus") { app.newFolder() }
-            }
+            .menuIndicator(.hidden)
+            .help("New page, board or folder")
 
             SettingsLink {
                 Image(systemName: "gearshape")
@@ -212,7 +208,8 @@ private struct SidebarNavRow: View {
 
 private struct SidebarSectionHeader: View {
     let title: String
-    var onAdd: (() -> Void)? = nil
+    /// The folder its + offers a new page, board or folder in; nil shows no +.
+    var addsIn: String? = nil
     @State private var isHovering = false
 
     var body: some View {
@@ -221,18 +218,22 @@ private struct SidebarSectionHeader: View {
                 .font(.lp(size: 11, weight: .semibold))
                 .foregroundStyle(Color.lpInkTertiary)
             Spacer(minLength: 0)
-            if let onAdd {
-                Button(action: onAdd) {
+            if let addsIn {
+                Menu {
+                    NewItemButtons(folder: addsIn)
+                } label: {
                     Image(systemName: "plus")
                         .font(.lp(size: 10.5, weight: .semibold))
                         .foregroundStyle(Color.lpInkSecondary)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
                 }
+                .menuStyle(.button)
                 .buttonStyle(SidebarButtonStyle())
+                .menuIndicator(.hidden)
                 .opacity(isHovering ? 1 : 0)
-                .help("New page")
-                .accessibilityLabel("New page")
+                .help("New page, board or folder")
+                .accessibilityLabel("New page, board or folder")
             }
         }
         .padding(.leading, 8)
@@ -241,6 +242,18 @@ private struct SidebarSectionHeader: View {
         .padding(.top, 14)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
+    }
+}
+
+/// New Page / New Board… / New Folder, in `folder` (nil: where LP usually puts new pages).
+private struct NewItemButtons: View {
+    let folder: String?
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Button("New Page", systemImage: "square.and.pencil") { app.newPage(in: folder) }
+        Button("New Board…", systemImage: "rectangle.split.3x1") { app.newBoard(in: folder) }
+        Button("New Folder", systemImage: "folder.badge.plus") { app.newFolder(in: folder) }
     }
 }
 
@@ -380,8 +393,8 @@ private struct SidebarItemRow: View {
             .accessibilityLabel("Rename, duplicate, delete and more")
 
             if node.isFolder {
-                Button {
-                    app.newPage(in: node.path)
+                Menu {
+                    NewItemButtons(folder: node.path)
                 } label: {
                     Image(systemName: "plus")
                         .font(.lp(size: 10.5, weight: .semibold))
@@ -389,9 +402,11 @@ private struct SidebarItemRow: View {
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
                 }
+                .menuStyle(.button)
                 .buttonStyle(.plain)
-                .help("New page inside")
-                .accessibilityLabel("New page inside")
+                .menuIndicator(.hidden)
+                .help("New page, board or folder inside")
+                .accessibilityLabel("New page, board or folder inside")
             }
         }
     }
@@ -399,9 +414,7 @@ private struct SidebarItemRow: View {
     @ViewBuilder
     private var menuItems: some View {
         if node.isFolder {
-            Button("New Page", systemImage: "square.and.pencil") { app.newPage(in: node.path) }
-            Button("New Board…", systemImage: "rectangle.split.3x1") { app.newBoard(in: node.path) }
-            Button("New Folder", systemImage: "folder.badge.plus") { app.newFolder(in: node.path) }
+            NewItemButtons(folder: node.path)
             Divider()
         } else {
             Button(workspace.isFavorite(node.path) ? "Remove from Favorites" : "Add to Favorites",

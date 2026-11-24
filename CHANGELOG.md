@@ -9,6 +9,11 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+- **New pages, boards and folders in one click:** the sidebar's **+ New** button, the **+** next to
+  Pages and a folder's **+** now open a menu with New Page, New Board… and New Folder (no right-click
+  needed). ⌘N still makes a page straight away.
+- **Settings → Claude:** the LP with Claude steps have their own Settings tab; General is shorter.
+
 - 2026-11-25 — **LP 1.0.2 released as the official version**, at the owner's request, after they tested
   1.0.2-beta.1 ("it work"). Their two changes from that test went in first: Settings → General → LP
   with Claude as four numbered steps (each with one short command and a Copy button; the commands

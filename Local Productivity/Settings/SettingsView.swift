@@ -10,7 +10,7 @@ import SwiftUI
 struct SettingsView: View {
 
     enum Tab: String {
-        case general, editor, notifications, calendars, sharing
+        case general, editor, notifications, calendars, sharing, claude
     }
 
     private static let tabKey = "settings.tab"
@@ -40,6 +40,10 @@ struct SettingsView: View {
             SharingSettingsView()
                 .tabItem { Label("Sharing", systemImage: "person.2") }
                 .tag(Tab.sharing.rawValue)
+            Form { ClaudeSettingsSection(workspaceFolder: app.workspace?.rootURL) }
+                .formStyle(.grouped)
+                .tabItem { Label("Claude", systemImage: "sparkles") }
+                .tag(Tab.claude.rawValue)
         }
         // One size for every tab — fits small screens; longer tabs scroll inside it.
         .frame(width: 560, height: 520)
@@ -90,7 +94,6 @@ private struct GeneralSettings: View {
             }
 
             UpdateSettingsSection(updater: app.updater)
-            ClaudeSettingsSection(workspaceFolder: app.workspace?.rootURL)
         }
         .formStyle(.grouped)
     }
@@ -120,7 +123,7 @@ private struct UpdateSettingsSection: View {
     }
 }
 
-/// Settings → General → LP with Claude: the steps that connect Claude Code to this workspace
+/// Settings → Claude: the steps that connect Claude Code to this workspace
 /// through the helper inside LP.app — one short Terminal command each (docs/MCP.md).
 private struct ClaudeSettingsSection: View {
     let workspaceFolder: URL?

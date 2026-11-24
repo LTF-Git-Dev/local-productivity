@@ -379,7 +379,7 @@ the app does; it shares no state with the app, which picks up its changes like a
   card through `BoardParser`/`CardEdit`/`moveCards`; nothing is deleted.
 - **Shipped inside LP.app** (1.0.2): the `lp-mcp` tool target (shared Foundation-only sources plus `MCP/`,
   no sandbox, hardened runtime) is copied to `LP.app/Contents/Helpers/lp-mcp` and signed with the app, so
-  the in-app updater keeps it current. Settings → General → LP with Claude shows four numbered
+  the in-app updater keeps it current. Settings → Claude shows four numbered
   steps, each with one short command and a Copy button (`ClaudeSetup`, shell-quoted, tested in `safety`):
   clear the download quarantine on the helper (macOS otherwise refuses to run it), `claude mcp add
   --scope user lp …`, `claude mcp get lp`, then a new Claude Code session.

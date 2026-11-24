@@ -89,8 +89,7 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
 
 ## Connect it
 
-**Claude Code — the easy way (LP 1.0.2 and later):** open LP and go to **Settings → General → LP with
-Claude**. It shows four steps, each with its own short command and a **Copy** button, filled in for
+**Claude Code — the easy way (LP 1.0.2 and later):** open LP and go to **Settings → Claude**. It shows four steps, each with its own short command and a **Copy** button, filled in for
 your Mac and the workspace LP has open:
 
 1. In Terminal, let LP's helper run — once, after downloading LP (macOS blocks programs that came in
