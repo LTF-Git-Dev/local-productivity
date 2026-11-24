@@ -269,7 +269,7 @@ nonisolated final class MCPServer {
                                                 ordinal: try a.optionalInt("ordinal"),
                                                 due: try a.optionalString("due").map { try day($0) },
                                                 time: try a.optionalString("time").map { try Self.time($0) },
-                                                revision: try a.optionalString("revision"), done: try a.bool("done"))
+                                                revision: try a.string("revision"), done: try a.bool("done"))
             return Self.json(["result": outcome.result, "revision": outcome.revision])
 
         case "lp_create_board":
@@ -400,9 +400,9 @@ nonisolated final class MCPServer {
                           "ordinal": ["type": "integer", "minimum": 0, "description": "The task's ordinal from lp_list_tasks (pages only, optional)."],
                           "due": text("The task's due date from lp_list_tasks, if it has one (pages only) — tells look-alike tasks apart."),
                           "time": text("The task's due time (HH:MM) from lp_list_tasks, if it has one (pages only)."),
-                          "revision": text("The page's revision from lp_list_tasks. Needed with ordinal when several tasks match; when given, refuses a page changed since."),
+                          "revision": text("The page's (or board's) revision from lp_list_tasks, lp_read_page or lp_read_board. Refused if it changed since: list or read it again."),
                           "done": ["type": "boolean", "description": "true to tick it off, false to reopen it."]],
-             required: ["path", "task", "done"], readOnly: false, idempotent: true),
+             required: ["path", "task", "revision", "done"], readOnly: false, idempotent: true),
         Tool(name: "lp_create_board", title: "Create a board",
              description: "Creates a Kanban board from one of LP's templates: simple (To do, In progress, Done), project, weekly, content or bugs. The last list counts its cards as done.",
              properties: ["title": text("The board's name."), "folder": text("Folder to put it in."),

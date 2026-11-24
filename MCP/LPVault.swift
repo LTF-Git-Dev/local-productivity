@@ -102,41 +102,21 @@ nonisolated final class LPVault {
     /// be read — so its results may be incomplete.
     private(set) var lastScanIncomplete = false
 
-    /// Every page in `folder` and below, by path. Hidden folders, packages, `node_modules`, links
-    /// and anything that isn't a regular file are skipped, as in LP's sidebar.
+    /// Every page in `folder` and below, by path, walked from the workspace folder itself
+    /// (`AnchoredFiles.walk`). Hidden folders, packages, `node_modules`, links and anything that
+    /// isn't a regular file are skipped, as in LP's sidebar.
     func pages(in folderPath: String = "") throws -> [PageInfo] {
         let base = try folder(folderPath)
-        close(try files.openFolder(base))   // reachable without a link, or an error now
-        let baseURL = base.isEmpty ? root : root.appendingPathComponent(base)
-        var incomplete = false
-        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .contentModificationDateKey]
-        guard let walker = FileManager.default.enumerator(at: baseURL, includingPropertiesForKeys: keys,
-                                                          options: [.skipsHiddenFiles, .skipsPackageDescendants],
-                                                          errorHandler: { _, _ in incomplete = true; return true }) else {
-            throw VaultError("The folder “\(base.isEmpty ? "workspace" : base)” can’t be read.")
-        }
         var found: [PageInfo] = []
-        for case let url as URL in walker {
-            guard let values = try? url.resourceValues(forKeys: Set(keys)) else { incomplete = true; continue }
-            if values.isDirectory == true {
-                if url.lastPathComponent == "node_modules" { walker.skipDescendants() }
-                continue
-            }
-            guard values.isRegularFile == true, Self.pageExtensions.contains(url.pathExtension.lowercased()) else { continue }
-            let path = Self.relativePath(of: url, under: baseURL, prefix: base)
-            found.append(PageInfo(path: path, title: Self.title(of: path), isBoard: isBoard(path),
-                                  modified: values.contentModificationDate ?? .distantPast))
-            if found.count >= Self.maxPages { incomplete = true; break }
+        var hitLimit = false
+        let complete = try files.walk(base) { path, modified in
+            guard Self.pageExtensions.contains((path as NSString).pathExtension.lowercased()) else { return true }
+            found.append(PageInfo(path: path, title: Self.title(of: path), isBoard: isBoard(path), modified: modified))
+            if found.count >= Self.maxPages { hitLimit = true; return false }
+            return true
         }
-        lastScanIncomplete = incomplete
+        lastScanIncomplete = !complete || hitLimit
         return found.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-    }
-
-    static func relativePath(of url: URL, under base: URL, prefix: String) -> String {
-        let full = url.standardizedFileURL.path
-        let basePath = base.standardizedFileURL.path
-        let tail = full.hasPrefix(basePath + "/") ? String(full.dropFirst(basePath.count + 1)) : url.lastPathComponent
-        return prefix.isEmpty ? tail : prefix + "/" + tail
     }
 
     /// A page's title is its file name, as in LP's sidebar.

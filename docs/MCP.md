@@ -33,13 +33,18 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
   that would pass 4 MB.
 - **Boards change card by card only**, through LP's board code, so they stay valid Kanban boards;
   tags and titles can't inject lists or cards.
-- **A save made meanwhile is never lost.** The new version is written beside the file and swapped
-  in, in one step, and only over the version that was read: if LP (or anything else) saved in
-  between, its version is swapped back and the change is made again on top of it. Finder tags,
-  permissions and the creation date stay.
-- Edits that replace text need the **revision** they were based on — a whole page
-  (`lp_update_page`), a card (`lp_update_card`), and look-alike tasks — so Claude can't overwrite
-  something changed after it read it. Every change returns the new revision for the next step.
+- **A save made meanwhile isn't overwritten.** The new version is written beside the file and
+  swapped in, in one step, and only over the version that was read: if LP, Obsidian or another
+  editor saved in between, its version is swapped back and the change is made again on top of it;
+  if two saves land in that moment, the extra one is kept next to the page as "… (conflict).md".
+  (The one case this can't cover: a program writing into a file it opened earlier, without
+  saving it anew — editors save whole files, so this doesn't apply to them.) Finder tags and
+  permissions stay — or the edit isn't made — and so does the creation date where the disk keeps one.
+  New pages are written in full under a hidden name first, so a failed write never leaves half a page.
+- Changes to what's already there need the **revision** they were based on — rewriting a page
+  (`lp_update_page`), changing a card (`lp_update_card`) and ticking a task off
+  (`lp_set_task_done`) — so Claude can't act on something that changed after it read it. Every
+  change returns the new revision for the next step.
 - Results say when a scan was `incomplete` (an unreadable folder, or more than 20,000 pages); a
   daily note is then never created twice.
 - In Claude, every tool except the six reading ones asks for your approval unless you allow it;

@@ -34,7 +34,9 @@ nonisolated final class AnchoredFiles {
     /// A handle on the folder at `path` (relative to the workspace), reached without following
     /// links; with `create`, missing folders are made. The caller closes it.
     func openFolder(_ path: String, create: Bool = false) throws -> Int32 {
-        var fd = dup(rootFD)
+        // A fresh handle, not dup(): a duplicate shares its read position, so a second listing
+        // of the same folder would start at the end and find nothing.
+        var fd = openat(rootFD, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         guard fd >= 0 else { throw VaultError("The workspace can’t be opened.") }
         for part in path.split(separator: "/").map(String.init) {
             if create, mkdirat(fd, part, 0o755) != 0, errno != EEXIST {
@@ -101,22 +103,29 @@ nonisolated final class AnchoredFiles {
     }
 
     /// Writes a new file; never replaces anything ("Plan 2.md" when "Plan.md" exists, as in LP).
-    /// Returns the name it got.
+    /// It's written and saved under a hidden name first, then given its name only if that name is
+    /// free — so a failed write never leaves a half-written page. Returns the name it got.
     func create(in folder: String, base: String, extension ext: String, data: Data) throws -> String {
         let folderFD = try openFolder(folder, create: true)
         defer { close(folderFD) }
+        let temporary = try writeTemporary(in: folderFD, data, mode: 0o644)
+        defer { unlinkat(folderFD, temporary, 0) }   // harmless once it has been renamed
         for counter in 1...10_000 {
             let name = counter == 1 ? "\(base).\(ext)" : "\(base) \(counter).\(ext)"
-            let fd = openat(folderFD, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o644)
-            if fd < 0 {
-                if errno == EEXIST { continue }
-                throw VaultError("The page couldn’t be created (\(String(cString: strerror(errno)))).")
-            }
-            defer { close(fd) }
-            try Self.writeAll(fd, data)
-            return name
+            if renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_EXCL)) == 0 { return name }
+            if errno != EEXIST { throw VaultError("The page couldn’t be created (\(String(cString: strerror(errno)))).") }
         }
         throw VaultError("There are too many pages called “\(base)” in that folder.")
+    }
+
+    /// A new hidden file in `folderFD` holding `data`, written and saved to disk; its name.
+    private func writeTemporary(in folderFD: Int32, _ data: Data, mode: mode_t) throws -> String {
+        let name = ".lp-mcp-\(UUID().uuidString).tmp"
+        let fd = openat(folderFD, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
+        guard fd >= 0 else { throw VaultError("The page couldn’t be written (\(String(cString: strerror(errno)))).") }
+        defer { close(fd) }
+        do { try Self.writeAll(fd, data) } catch { unlinkat(folderFD, name, 0); throw error }
+        return name
     }
 
     private static func writeAll(_ fd: Int32, _ data: Data) throws {
@@ -156,12 +165,18 @@ nonisolated final class AnchoredFiles {
             try Self.writeAll(fd, data)
             // Keep what the old file carried besides its text: Finder tags and other extended
             // attributes, permissions and its creation date.
-            _ = fcopyfile(originalFD, fd, nil, copyfile_flags_t(COPYFILE_XATTR | COPYFILE_ACL))
-            _ = fchmod(fd, original.st_mode & 0o7777)
+            // Tags and permissions are required: without them the edit isn't made.
+            guard fcopyfile(originalFD, fd, nil, copyfile_flags_t(COPYFILE_XATTR | COPYFILE_ACL)) == 0,
+                  fchmod(fd, original.st_mode & 0o7777) == 0 else {
+                throw VaultError("“\(path)” couldn’t keep its Finder tags or permissions, so it wasn’t changed.")
+            }
+            // The creation date too, where the disk keeps one.
             var created = original.st_birthtimespec
             var attributes = attrlist(bitmapcount: u_short(ATTR_BIT_MAP_COUNT), reserved: 0, commonattr: attrgroup_t(ATTR_CMN_CRTIME),
                                       volattr: 0, dirattr: 0, fileattr: 0, forkattr: 0)
-            _ = fsetattrlist(fd, &attributes, &created, MemoryLayout<timespec>.size, 0)
+            if fsetattrlist(fd, &attributes, &created, MemoryLayout<timespec>.size, 0) != 0, errno != ENOTSUP, errno != EINVAL {
+                throw VaultError("“\(path)” couldn’t keep its creation date, so it wasn’t changed.")
+            }
             close(fd)
             close(originalFD)
         } catch {
@@ -175,28 +190,75 @@ nonisolated final class AnchoredFiles {
             throw VaultError("The page couldn’t be replaced (\(String(cString: strerror(errno)))).")
         }
         swapped = true
-        // `temporary` now holds what was there a moment ago.
-        let displaced = (try? read(folder.isEmpty ? temporary : folder + "/" + temporary, limit: max(expected.count, data.count) + 1)) ?? Data()
-        if displaced == expected {
+        // `temporary` now holds what was there a moment ago. Unless it is exactly what was read —
+        // and could be read back to check — it is someone else's save.
+        let hiddenPath = folder.isEmpty ? temporary : folder + "/" + temporary
+        let limit = max(expected.count, data.count) + 1
+        if let displaced = try? read(hiddenPath, limit: limit), displaced == expected {
             unlinkat(folderFD, temporary, 0)
             return .done
         }
         // Someone saved in between: put their version back.
         guard renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_SWAP)) == 0 else {
-            throw VaultError("“\(path)” changed while it was being written; its earlier version is kept as \(temporary) next to it.")
+            throw VaultError("“\(path)” changed while it was being written. Its other version is kept, hidden, as “\(hiddenPath)”.")
         }
-        let returned = (try? read(folder.isEmpty ? temporary : folder + "/" + temporary, limit: max(expected.count, data.count) + 1)) ?? Data()
-        if returned == data {
+        if let returned = try? read(hiddenPath, limit: limit), returned == data {
             unlinkat(folderFD, temporary, 0)
-        } else {
-            // A third save landed in between: keep that one too, next to the page, never lose it.
-            let stem = (name as NSString).deletingPathExtension, ext = (name as NSString).pathExtension
-            for counter in 1...1_000 {
-                let copy = counter == 1 ? "\(stem) (conflict).\(ext)" : "\(stem) (conflict \(counter)).\(ext)"
-                if renameatx_np(folderFD, temporary, folderFD, copy, UInt32(RENAME_EXCL)) == 0 { break }
-                if errno != EEXIST { break }
+            return .changedMeanwhile
+        }
+        // Yet another save landed in between: keep it next to the page under a visible name —
+        // or stop and say exactly where it is.
+        let stem = (name as NSString).deletingPathExtension, ext = (name as NSString).pathExtension
+        let short = String(UUID().uuidString.prefix(8))
+        let candidates = (1...20).map { $0 == 1 ? "\(stem) (conflict).\(ext)" : "\(stem) (conflict \($0)).\(ext)" } + ["conflict-\(short).\(ext)"]
+        for copy in candidates where renameatx_np(folderFD, temporary, folderFD, copy, UInt32(RENAME_EXCL)) == 0 {
+            throw VaultError("“\(path)” was saved by something else twice while it was being changed. Both are kept: the newest in the page, the other as “\(folder.isEmpty ? copy : folder + "/" + copy)”. Read the page again and redo the change.")
+        }
+        throw VaultError("“\(path)” was saved by something else twice while it was being changed. The other version is kept, hidden, as “\(hiddenPath)”.")
+    }
+
+    // MARK: - Listing
+
+    /// Every regular file under `folder`, walked from the workspace folder itself: hidden names,
+    /// links, packages and `node_modules` are skipped and never followed. `visit` gets each
+    /// file's path and modification date and returns false to stop. Returns false when part of
+    /// the folder couldn't be read (the listing is then incomplete).
+    func walk(_ folder: String, visit: (_ path: String, _ modified: Date) -> Bool) throws -> Bool {
+        let start = try openFolder(folder)
+        var complete = true
+        var stopped = false
+        func visitFolder(_ fd: Int32, _ prefix: String, depth: Int) {
+            guard depth < 64, let directory = fdopendir(fd) else { close(fd); complete = false; return }
+            defer { closedir(directory) }
+            var names: [String] = []
+            while let entry = readdir(directory) {
+                let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
+                if !name.hasPrefix(".") { names.append(name) }
+            }
+            for name in names.sorted() where !stopped {
+                var info = stat()
+                guard fstatat(dirfd(directory), name, &info, AT_SYMLINK_NOFOLLOW) == 0 else { complete = false; continue }
+                let path = prefix.isEmpty ? name : prefix + "/" + name
+                switch info.st_mode & S_IFMT {
+                case S_IFREG:
+                    let modified = Date(timeIntervalSince1970: Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9)
+                    if !visit(path, modified) { stopped = true }
+                case S_IFDIR:
+                    guard name != "node_modules", !Self.packageExtensions.contains((name as NSString).pathExtension.lowercased()) else { continue }
+                    let child = openat(dirfd(directory), name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                    if child < 0 { complete = false; continue }
+                    visitFolder(child, path, depth: depth + 1)
+                default:
+                    continue   // links, pipes, devices: never pages, never followed
+                }
             }
         }
-        return .changedMeanwhile
+        visitFolder(start, folder, depth: 0)
+        return complete
     }
+
+    /// Folders macOS shows as single files (apps, bundles, Pages documents…), skipped as LP does.
+    static let packageExtensions: Set<String> = ["app", "bundle", "framework", "plugin", "kext", "pkg", "mpkg", "photoslibrary",
+                                                 "xcodeproj", "xcworkspace", "playground", "rtfd", "pages", "numbers", "key",
+                                                 "scriptd", "band", "logicx", "fcpbundle", "imovielibrary", "lpdf"]
 }

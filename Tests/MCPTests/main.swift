@@ -115,7 +115,7 @@ check(readOnly == ["lp_list_pages", "lp_search", "lp_read_page", "lp_list_tasks"
 // Wrong argument types are explained, not crashes.
 check(tool("lp_read_page", [:]).error, "a missing argument is an error")
 check(tool("lp_read_page", ["path": 5]).text.contains("required"), "a number for a path is refused")
-check(tool("lp_set_task_done", ["path": "x.md", "task": "a", "done": 1]).text.contains("true or false"), "1 isn't a boolean")
+check(tool("lp_set_task_done", ["path": "x.md", "revision": pageRev("x.md"), "task": "a", "done": 1]).text.contains("true or false"), "1 isn't a boolean")
 check(tool("lp_search", ["query": "a", "limit": 2.5]).text.contains("whole number"), "2.5 isn't a limit")
 check(tool("lp_add_card", ["board": "b.md", "list": "x", "title": "t", "tags": "one"]).text.contains("list of text"), "tags must be a list")
 
@@ -247,23 +247,23 @@ check(tool("lp_list_tasks", ["due_by": "2026-02-30"]).error, "an impossible date
 check(tool("lp_list_tasks", ["due_by": "26-1-5"]).error, "a loose date is refused")
 
 let pageBefore = read("Projects/Website Redesign.md")!
-let ticked = tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Draft the new navigation", "done": true])
+let ticked = tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "revision": pageRev("Projects/Website Redesign.md"), "task": "Draft the new navigation", "done": true])
 check(!ticked.error && ticked.json["result"] as? String == "Ticked off.", "a task is ticked off: \(ticked.text)")
 let pageAfter = read("Projects/Website Redesign.md")!
 check(pageAfter == pageBefore.replacingOccurrences(of: "- [ ] Draft the new navigation", with: "- [x] Draft the new navigation"),
       "only that checkbox changed: \(pageAfter)")
-check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Draft the new navigation", "done": true]).json["result"] as? String
+check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "revision": pageRev("Projects/Website Redesign.md"), "task": "Draft the new navigation", "done": true]).json["result"] as? String
       == "It was already done.", "ticking twice changes nothing")
-check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Decide on the image pipeline", "done": true]).text.contains("ordinal"),
+check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "revision": pageRev("Projects/Website Redesign.md"), "task": "Decide on the image pipeline", "done": true]).text.contains("ordinal"),
       "two tasks reading the same need their ordinal")
 check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Decide on the image pipeline", "ordinal": 4,
                         "revision": pageRev("Projects/Website Redesign.md"), "done": true]).json["result"]
       as? String == "Ticked off.", "the ordinal picks one")
 check(read("Projects/Website Redesign.md")!.hasSuffix("- [ ] Decide on the image pipeline\n- [x] Decide on the image pipeline\n"),
       "the second one, not the first: \(read("Projects/Website Redesign.md")!.suffix(80))")
-check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Draft the new navigation", "done": false]).json["result"]
+check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "revision": pageRev("Projects/Website Redesign.md"), "task": "Draft the new navigation", "done": false]).json["result"]
       as? String == "Reopened.", "and reopened")
-check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Nothing like this", "done": true]).text.contains("no task"),
+check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "revision": pageRev("Projects/Website Redesign.md"), "task": "Nothing like this", "done": true]).text.contains("no task"),
       "an unknown task says so")
 
 // MARK: Writing pages
@@ -366,7 +366,7 @@ tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Review", "title": "
 tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "move_to_list": "Review", "before_card": "Proofread"])
 let review = ((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[3]["cards"] as? [[String: Any]] ?? [])
 check(review.map { $0["title"] as? String ?? "" } == ["Press release v2", "Proofread"], "placed before a card: \(review)")
-check(tool("lp_set_task_done", ["path": "Projects/Launch.md", "task": cardID, "done": true]).json["result"] as? String == "Updated.",
+check(tool("lp_set_task_done", ["path": "Projects/Launch.md", "revision": pageRev("Projects/Launch.md"), "task": cardID, "done": true]).json["result"] as? String == "Updated.",
       "a card is ticked off like a task")
 check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[3]["cards"] as? [[String: Any]])?.first?["done"]
       as? Bool == true, "and stays in its list, done")
@@ -462,10 +462,10 @@ check(tool("lp_update_card", ["board": "AllDone.md", "revision": rev("AllDone.md
 
 // Look-alike tasks with different due dates.
 write("Reports.md", "- [ ] Send report 📅 2026-11-30\n- [ ] Send report 📅 2026-11-25\n")
-check(tool("lp_set_task_done", ["path": "Reports.md", "task": "Send report", "due": "2026-11-25", "done": true]).json["result"] as? String == "Ticked off.",
+check(tool("lp_set_task_done", ["path": "Reports.md", "revision": pageRev("Reports.md"), "task": "Send report", "due": "2026-11-25", "done": true]).json["result"] as? String == "Ticked off.",
       "the due date tells look-alikes apart")
 check(read("Reports.md") == "- [ ] Send report 📅 2026-11-30\n- [x] Send report 📅 2026-11-25\n", "the right one: \(read("Reports.md") ?? "")")
-check(tool("lp_set_task_done", ["path": "Reports.md", "task": "Send report", "ordinal": 1, "due": "2026-11-30", "done": true]).json["result"]
+check(tool("lp_set_task_done", ["path": "Reports.md", "revision": pageRev("Reports.md"), "task": "Send report", "ordinal": 1, "due": "2026-11-30", "done": true]).json["result"]
       as? String == "Ticked off.", "a stale ordinal can't override the due date")
 check(read("Reports.md") == "- [x] Send report 📅 2026-11-30\n- [x] Send report 📅 2026-11-25\n", "still the one with that date")
 
@@ -510,9 +510,9 @@ check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Pr
 
 // Look-alike tasks: the ordinal counts only with the page's revision.
 write("Same.md", "- [ ] Call 📅 2026-11-26 09:00\n- [ ] Call 📅 2026-11-26 15:00\n")
-check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "ordinal": 1, "done": true]).text.contains("revision"),
-      "an ordinal alone isn't trusted")
-check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "time": "15:00", "done": true]).json["result"] as? String == "Ticked off.",
+check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "ordinal": 1, "done": true]).text.contains("“revision” is required"),
+      "ticking off needs the revision it was listed with")
+check(tool("lp_set_task_done", ["path": "Same.md", "revision": pageRev("Same.md"), "task": "Call", "time": "15:00", "done": true]).json["result"] as? String == "Ticked off.",
       "the time tells them apart")
 check(read("Same.md") == "- [ ] Call 📅 2026-11-26 09:00\n- [x] Call 📅 2026-11-26 15:00\n", "the 15:00 one: \(read("Same.md") ?? "")")
 let sameTasks = (tool("lp_list_tasks", ["status": "all", "folder": ""]).json["tasks"] as? [[String: Any]] ?? []).filter { $0["path"] as? String == "Same.md" }
@@ -554,6 +554,16 @@ check(tool("lp_append_to_page", ["path": "Swap/Doc.md", "content": "x"]).error, 
 check(tool("lp_create_page", ["title": "New", "folder": "Swap/Deeper"]).error, "and for making folders")
 check(try! String(contentsOf: outside.appendingPathComponent("Doc.md"), encoding: .utf8) == "outside doc\n", "outside is untouched")
 check(!fm.fileExists(atPath: outside.appendingPathComponent("Deeper").path), "no folder was made outside")
+
+// MARK: Review fixes (Codex round 3)
+
+let firstListing = tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []
+let secondListing = tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []
+check(!firstListing.isEmpty && firstListing.count == secondListing.count, "listing twice finds the same pages (\(firstListing.count), \(secondListing.count))")
+write("Tool.app/Contents/Readme.md", "inside an app\n")
+check(!(tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).contains { ($0["path"] as? String)?.hasPrefix("Tool.app") == true },
+      "nothing inside a package (an .app) is listed")
+check(!allFiles().contains { ($0 as NSString).lastPathComponent.hasPrefix(".lp-mcp-") }, "creates and edits leave no hidden temporary files")
 
 // MARK: Nothing is ever deleted
 
