@@ -9,11 +9,6 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
-- **New pages, boards and folders in one click:** the sidebar's **+ New** button, the **+** next to
-  Pages and a folder's **+** now open a menu with New Page, New Board… and New Folder (no right-click
-  needed). ⌘N still makes a page straight away.
-- **Settings → Claude:** the LP with Claude steps have their own Settings tab; General is shorter.
-
 - 2026-11-25 — **LP 1.0.2 released as the official version**, at the owner's request, after they tested
   1.0.2-beta.1 ("it work"). Their two changes from that test went in first: Settings → General → LP
   with Claude as four numbered steps (each with one short command and a Copy button; the commands
@@ -55,11 +50,18 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## 1.0.3
 
+- **New pages, boards and folders in one click:** the sidebar's **+ New** button, the **+** next to
+  Pages and a folder's **+** now open a menu with New Page, New Board… and New Folder (no right-click
+  needed). ⌘N still makes a page straight away.
+- **Settings → Claude:** the LP with Claude steps have their own Settings tab; General is shorter.
 - **Settings fits your screen.** Every tab has the same size and scrolls when it's longer (General
   had grown taller than a laptop screen with the LP with Claude steps).
 - **Notifications on/off switch** at the top of Settings → Notifications. Off cancels every reminder
-  and snooze LP has waiting (at once, and LP waits for it when quitting); on plans them again. Your
+  and snooze LP has waiting, at once; on plans them again. Your
   choices for what to be reminded about are kept. Notifications already shown stay.
+- **Fixed (1.0.3-beta.1 only):** with Notifications switched off, quitting LP or installing an update
+  could freeze LP. If that happens while updating from beta 1, force-quit LP (⌥⌘Esc) and open it
+  again — the update is already installed.
 
 ## 1.0.2 — 2026-11-25
 

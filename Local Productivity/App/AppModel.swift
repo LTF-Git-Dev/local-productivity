@@ -282,6 +282,13 @@ final class AppModel {
         }
     }
 
+    /// On quit: a switch-off still waiting on the settings delay is applied, and LP's pending
+    /// notifications are cancelled again (macOS handles requests in order, so earlier adds go too).
+    func prepareRemindersForQuit() {
+        if reminders.isOn != settings.remindersEnabled { reminders.setOn(settings.remindersEnabled) }
+        if !settings.remindersEnabled { reminders.cancelAllNow() }
+    }
+
     func updateReminders() {
         // Switched off: everything LP scheduled goes, workspace or not.
         if reminders.isOn != settings.remindersEnabled { reminders.setOn(settings.remindersEnabled) }

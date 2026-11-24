@@ -194,13 +194,10 @@ final class ReminderCenter {
         }
     }
 
-    /// Waits for the change under way (used when quitting while switched off).
-    func settle() async {
-        // Until no newer change has replaced the one awaited.
-        while let task = updateTask {
-            await task.value
-            if updateTask == task { return }
-        }
+    /// Cancels every notification LP has waiting, now (quitting while switched off).
+    func cancelAllNow() {
+        guard !isDryRun else { return }
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 
     /// Shows the same reminder again later.

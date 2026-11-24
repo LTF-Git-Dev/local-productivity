@@ -166,7 +166,10 @@ access; the switch only cancels LP's own pending notifications (`removeAllPendin
 — LP schedules nothing else). All 11 suites 0 failed (1,632), `ownership` 29 passed; Release build
 (1.0.3) signed ad hoc, passes the updater's strict signature check, secret scan clean, no personal
 email; `lp-mcp` universal and answering (17 tools). Codex clean after five rounds on the switch's
-timing (immediate off, one queue for updates/snoozes/cleanup, quit waits).
+timing (immediate off, one queue for updates/snoozes/cleanup).
+Final testing for beta 2 found that beta 1's quit wait (`.terminateLater`) froze a quit started from
+main-thread code (the updater's relaunch, the harness); quitting now cancels synchronously instead —
+verified: the test app quits in 2–3 s, including with Notifications off.
 
 ### v1.0.2 — 25 November 2026 (official)
 

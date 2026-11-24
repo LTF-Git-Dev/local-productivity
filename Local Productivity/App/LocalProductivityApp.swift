@@ -72,14 +72,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSWorkspace.shared.activateFileViewerSelecting([file])
             }
         }
-        // Reminders follow the latest settings before LP goes (a change may still be waiting on its
-        // short delay), and a switch-off has cancelled everything.
-        app.updateReminders()
-        Task {
-            await app.reminders.settle()
-            sender.reply(toApplicationShouldTerminate: true)
-        }
-        return .terminateLater
+        // Notifications switched off: cancel what's waiting once more on the way out. Synchronous on
+        // purpose — .terminateLater would freeze a quit started from main-thread code (the updater's).
+        app.prepareRemindersForQuit()
+        return .terminateNow
     }
 }
 
