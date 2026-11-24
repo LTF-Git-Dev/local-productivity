@@ -184,7 +184,4 @@ nonisolated enum ClaudeSetup {
     /// Step 3: shows whether it's connected.
     static let check = "claude mcp get lp"
 
-    /// When LP is already connected and should be connected to another workspace instead.
-    static let remove = "claude mcp remove lp --scope user"
-
 }

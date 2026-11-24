@@ -108,7 +108,7 @@ check(ClaudeSetup.allowHelper(helperPath) == "xattr -d com.apple.quarantine '/Ap
 let connectStep = ClaudeSetup.connect(helper: helperPath, workspace: "/Users/me/My Notes; echo hi")
 check(connectStep == "claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp' --workspace '/Users/me/My Notes; echo hi'",
       "step 2 connects this workspace as one quoted word: \(connectStep)")
-check(ClaudeSetup.check == "claude mcp get lp" && ClaudeSetup.remove == "claude mcp remove lp --scope user", "steps 3 and replacing")
+check(ClaudeSetup.check == "claude mcp get lp", "step 3 checks the connection")
 
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

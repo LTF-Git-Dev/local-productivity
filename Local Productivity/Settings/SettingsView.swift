@@ -140,7 +140,7 @@ private struct ClaudeSettingsSection: View {
                            command: ClaudeSetup.allowHelper(helper))
                 ClaudeStep(number: 2, title: "Connect Claude Code to this workspace.",
                            command: ClaudeSetup.connect(helper: helper, workspace: workspaceFolder.path))
-                ClaudeStep(number: 3, title: "Check it’s connected: it should say “✔ Connected”.", command: ClaudeSetup.check)
+                ClaudeStep(number: 3, title: "Check it’s connected: it should say “✔ Connected” and show this workspace’s folder.", command: ClaudeSetup.check)
                 ClaudeStep(number: 4, title: "Start a new Claude Code session and ask, for example, “What’s overdue in LP?”. LP asks you which workspace, and which folder in it, Claude may use.",
                            command: nil)
             } else {
@@ -149,7 +149,7 @@ private struct ClaudeSettingsSection: View {
         } header: {
             Text("LP with Claude")
         } footer: {
-            Text("Claude can then read and change this workspace’s notes, tasks and boards — it can’t delete files. Already connected to another workspace? Remove that first with “\(ClaudeSetup.remove)”. The Claude desktop app is set up by hand (see the user guide).")
+            Text("Claude can then read and change this workspace’s notes, tasks and boards — it can’t delete files. If step 2 says LP is already connected, step 3 shows that connection and its scope; to replace it, run “claude mcp remove lp --scope” with the scope shown (this removes every workspace it allowed), then do step 2 again. To allow several workspaces, or for the Claude desktop app, see the user guide.")
         }
     }
 }

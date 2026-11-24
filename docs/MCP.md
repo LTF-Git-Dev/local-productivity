@@ -98,11 +98,14 @@ your Mac and the workspace LP has open:
    `xattr -d com.apple.quarantine '/Applications/LP.app/Contents/Helpers/lp-mcp'`
 2. Connect Claude Code to the workspace:
    `claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp' --workspace '/path/to/your LP folder'`
-3. Check it's connected (it says "✔ Connected"): `claude mcp get lp`
+3. Check it's connected (it says "✔ Connected" and shows this workspace's folder): `claude mcp get lp`
 4. Start a new Claude Code session and ask, for example, "What's overdue in LP?" — LP asks you which
    workspace, and which folder in it, Claude may use.
 
-Already connected to another workspace? Remove that first: `claude mcp remove lp --scope user`.
+If step 2 says LP is already connected, step 3 shows that connection and its scope (user, project
+or local). To replace it, run `claude mcp remove lp --scope <the scope shown>` — this removes every
+workspace that connection allowed — then do step 2 again. To allow several workspaces, use the
+"by hand" command below with one `--workspace` per folder.
 LP's in-app updates keep the helper up to date.
 
 **Claude Code — by hand** (for every project, `--scope user`; one `--workspace` per folder Claude may
