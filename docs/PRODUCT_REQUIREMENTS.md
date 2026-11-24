@@ -8,7 +8,7 @@ away from their owner.
 |---|---|
 | Owner | LTF |
 | Platform | macOS 15 Sequoia or later (also 26 Tahoe and 27), Apple silicon and Intel; native SwiftUI + AppKit, with a WidgetKit extension |
-| Current version | **1.0.1** (2026-11-23); the first release was 1.0.0 (2026-11-18) |
+| Current version | **1.0.2** (2026-11-25): LP with Claude; before it 1.0.1 (2026-11-23) and the first release, 1.0.0 (2026-11-18) |
 | Repository | github.com/LTF-Git-Dev/local-productivity (private) |
 | Status of this document | Living — update it whenever a feature ships, changes or is cut |
 
@@ -162,7 +162,7 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 | ST-3 | Sharing: connect a GitHub token (verified before saving, stored in the Keychain) | ✅ |
 | ST-4 | Sharing: allow Google Drive for a connected Google account (`drive.file` only; asked when wanted); disconnecting deletes LP's Docs first | ✅ (1.0.1) |
 | ST-4 | Notifications (see 5.6) | ✅ |
-| AI-1 | **LP for Claude (MCP):** Claude Code and the Claude desktop app can read, write and update pages, tasks and boards (15 tools), on the Mac only, nothing deleted, every edit based on what it read | ✅ (2026-11-24, installed after the owner's review; the person picks the workspace in a form each session) |
+| AI-1 | **LP for Claude (MCP):** Claude Code and the Claude desktop app can read, write and update pages, tasks and boards (15 tools), on the Mac only, nothing deleted, every edit based on what it read | ✅ 1.0.2 (the person picks the workspace in a form each session; set up in Settings → General → LP with Claude) |
 | ST-5 | Updates: LP checks its GitHub Releases once a day (can be turned off; betas optional), shows what's new and installs with one click (Install and Restart); only updates signed with LP's release key, the download checked byte for byte; LP → Check for Updates… | ✅ (1.0.1) |
 
 ## 6. Non-functional requirements
@@ -198,7 +198,8 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 1. **Shipped in 1.0.0 (2026-11-18), the first release:** everything marked ✅ above — the editor,
    Home and search, the calendar with Apple, Google and Microsoft sync, boards with tracking,
    sharing and templates, reminders, widgets, text controls, macOS 15–27 — and the user guide.
-2. **Shipped in 1.0.1 (2026-11-23):** in-app updates, Google Drive sharing, full calendar sync, least-privilege permissions, the
+2. **Shipped in 1.0.2 (2026-11-25):** LP with Claude (MCP) — Claude Code and the Claude desktop app read, write and update pages, tasks and boards in the workspace the person picks.
+3. **Shipped in 1.0.1 (2026-11-23):** in-app updates, Google Drive sharing, full calendar sync, least-privilege permissions, the
    new icon, the open-source licence and policies, and the fixes from Codex's reviews. Then, once
    Google approves LP: one-click Google Connect (a small update through the in-app updater).
    Microsoft one-click when LP can register with Microsoft.

@@ -9,6 +9,14 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+- 2026-11-25 — **LP 1.0.2 released as the official version**, at the owner's request, after they tested
+  1.0.2-beta.1 ("it work"). Their two changes from that test went in first: Settings → General → LP
+  with Claude as four numbered steps (each with one short command and a Copy button; the commands
+  are built on each Mac from its own LP and open workspace), and no Send a Test in Notifications.
+  The owner chose not to test another beta, so `v1.0.2-beta.2` was published only as the build the
+  official release takes its zip from. `release/1.0.2-beta.1` merged into `main`; the website's
+  "Work with Claude" section published.
+
 - 2026-11-24 — **LP for Claude (MCP)**, at the owner's request (read, write and update). Branch
   `feature/lp-mcp`; installed on the owner's Mac after their review (Claude Code and the desktop
   app, workspace Noted); no app release needed — LP's own behaviour is unchanged. The user guide
@@ -40,7 +48,7 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
   has a **Download LP** button (`releases/latest`; the site had no download link since it was
   built while the repository was private) and the Open Anyway steps; README quotes the message.
 
-## 1.0.2
+## 1.0.2 — 2026-11-25
 
 ### New
 - **LP with Claude.** Claude Code and the Claude desktop app can now work with your notes: ask

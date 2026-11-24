@@ -159,6 +159,13 @@ request, the record untouched), then allowed (`share-trust ;; share-update` → 
 
 ## Record
 
+### v1.0.2 — 25 November 2026 (official)
+
+The beta's record below applies; since then only the Settings steps (shell-quoted commands, tested
+in `safety`) and the removal of Send a Test changed. All suites 0 failed; `ownership` 29 passed;
+Codex clean on every change. The official release is `v1.0.2-beta.2`'s own zip.
+
+
 ### v1.0.2-beta.1 — 24 November 2026
 
 LP 1.0.2 = LP for Claude (see the MCP record below) shipped inside LP.app, plus the Settings section.
