@@ -159,6 +159,19 @@ request, the record untouched), then allowed (`share-trust ;; share-update` → 
 
 ## Record
 
+### LP for Claude (MCP) — 24 November 2026 (`feature/lp-mcp`, not released)
+
+| # | Result | Found, and what was done |
+|---|---|---|
+| 1 Secrets | ✅ | None: no tokens, keys or network access; it reads only the workspace folder it's given. |
+| 2 Ownership | ✅ | Only the workspace: every path walked from its folder without following links; hidden, read-only, locked and ACL-protected files refused; a file shared by hard link keeps its other copy untouched. Tested in the `mcp` suite. |
+| 3 Database rules | ✅ n/a | No database. |
+| 4 Mass assignment | ✅ | Tool arguments validated against each tool's schema (unknown or wrongly typed ones refused); card titles and tags can't inject board structure; edits of existing content need the revision they read. |
+| 5 Payments | ✅ n/a | None. |
+| 6 Rate limits | ✅ | Local only; scans bounded (20,000 pages, 50,000 entries per folder, 4 MB per file) and say when they're incomplete. |
+| 7 Prove it | ✅ | `mcp` suite 559 passed, 0 failed; Codex clean after 10 rounds. |
+
+
 ### v1.0.1 — 23 November 2026 (re-check before the official release)
 
 The official 1.0.1 is the beta's own app (`v1.0.1-beta.1`, tested by the owner, who confirmed it

@@ -111,6 +111,11 @@ The head is also the logo mark, LP lockup and 120 px Google branding PNG. 07 Foc
 keeps only the installed catalog and guide PNGs. Do not recreate `design/` or the old renderer
 under `Scripts/`.
 
+**MCP server** (`MCP/`, its own executable `lp-mcp`, built by `Scripts/build-mcp.sh`, tested by the `mcp`
+suite, documented in `docs/MCP.md`): `AnchoredFiles.swift` (all file access, anchored to the
+workspace folder), `LPVault.swift` (every operation, on LP's Foundation-only code), `MCPServer.swift`
+(JSON-RPC 2.0 over stdio and the 15 tools), `main.swift`.
+
 ## 4. Build, test, run, look
 
 ```sh
@@ -414,6 +419,7 @@ share record, and `lastSeen` (the board as last seen, to record outside edits).
 | `reminders` | 62 | time parsing, planning rules, limits, stable identifiers, workspaces |
 | `tasks` | 24 | which to-dos are tasks; finding the right one to tick off after the page changed |
 | `boards` | 220 | Kanban format, edits, card edits, moving cards, list IDs, front matter, diffing, logs (lenient decoding), reports, gist links, Drive requests and shared-page records, templates, layout, drop targets, fuzzing (3,000 random boards) |
+| `mcp` | 559 | LP's MCP server for Claude: JSON-RPC protocol, all 15 tools, path and link escapes, hidden items, pipes, read-only/locked/ACL-protected pages, revisions, swap-and-verify writes (a save made meanwhile stands), metadata kept (tags, owner, group, flags, ACL, creation date), Obsidian format, nothing deleted |
 | `ownership` | 29 | person A makes something, person B tries to change it: shared pages on GitHub and in Google Drive (permissions per Mac), sign-in replies, `localproductivity://` links — every attempt refused (`LP_TEST_VERBOSE=1` prints them) |
 
 Add a test for every parser, serializer or model change. The bar for the Markdown engine is

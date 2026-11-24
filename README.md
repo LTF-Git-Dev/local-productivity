@@ -198,6 +198,13 @@ need setting up" until LP is signed with a team — a free Apple ID works:
   free Personal mode project that only your account can use.
 - Microsoft work or school accounts may need their organisation's approval the first time.
 
+### Using LP with Claude (MCP)
+
+`lp-mcp` lets Claude — Claude Code and the Claude desktop app — read and change your LP workspace:
+search pages, list tasks and boards, add to today's note, tick tasks off, add and move cards. It
+works on your workspace folder directly with LP's own code, on your Mac only; nothing is ever
+deleted. How to build and connect it, what it can do and its safety rules: [docs/MCP.md](docs/MCP.md).
+
 ## Keyboard
 
 | | |
@@ -220,6 +227,7 @@ need setting up" until LP is signed with a team — a free Apple ID works:
 | [User guide (PDF)](docs/LP%20User%20Guide.pdf) | How to use LP, step by step |
 | [Website](https://ltf-git-dev.github.io) | LP's public page: what it does, how it uses Google and Microsoft data, and every policy |
 | [Privacy Policy](PRIVACY.md) · [Terms of Use](TERMS.md) · [Cookie Policy](COOKIES.md) | What LP does with your data (nothing leaves your Mac unless you ask), the terms, and cookies (none) |
+| [LP for Claude (MCP)](docs/MCP.md) | Connect Claude to your workspace: the tools, safety rules and setup |
 | [Connected accounts](docs/CONNECTED_ACCOUNTS.md) | What Apple, Google, Microsoft and GitHub connections can do, what they keep, how to remove them |
 | [Accessibility](ACCESSIBILITY.md) · [Security](SECURITY.md) | What LP supports and the latest accessibility pass · how to report a security problem |
 | [Security checklist](docs/SECURITY_CHECKLIST.md) · [Releasing](docs/RELEASING.md) | The checks every version passes before it is finalized, with their results · how a version goes from beta to official |
@@ -241,7 +249,8 @@ the latest official release; the newest beta's branch is named on the
 see [SECURITY.md](SECURITY.md) (private reporting is on).
 
 ```sh
-Scripts/test.sh                  # 993 checks: markdown, calendar, safety, widgets, reminders, tasks, search, updates, boards, ownership
+Scripts/test.sh                  # 1,552 checks: markdown, calendar, safety, widgets, reminders, tasks, search, updates, boards, ownership, mcp
+Scripts/build-mcp.sh             # LP's MCP server for Claude → .build/lp-mcp (docs/MCP.md)
 Scripts/build.sh                 # Debug build, the same as Xcode's (LP_TEAM_ID=… to sign with a team)
 Scripts/build.sh harness         # Build used for UI snapshots
 Scripts/snapshot.sh home "route:home ;; shot:home"

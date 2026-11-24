@@ -9,6 +9,22 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
+- 2026-11-24 — **LP for Claude (MCP)**, at the owner's request (read, write and update). Branch
+  `feature/lp-mcp`; not released, not installed — waiting for the owner's review.
+  - `lp-mcp`: an MCP server (stdio, no dependencies) with 15 tools — list, search and read pages;
+    list tasks and boards with progress; create pages and boards, add to pages and daily notes, add
+    cards; edit text, rewrite pages, tick tasks off, edit and move cards. Built on LP's own code,
+    so files stay as LP and Obsidian write them.
+  - Safety: only regular Markdown files inside the workspace, walked from the folder itself without
+    following links; hidden, read-only, locked and protected files left alone; nothing deleted; a
+    save made meanwhile stands (atomic swap, then verified); metadata kept; edits need the revision
+    they read. Known limits in docs/MCP.md.
+  - Codex reviewed it 10 times (12, 11, 8, 6, 5, 3, 3, 3, 2 findings, then clean); the tests found
+    two bugs of their own on the way (a second listing came back empty; a protected page left a
+    temporary file). New `mcp` suite: 559 checks. Real Claude Code sessions finished multi-step
+    tasks with no tool errors, and LP showed the changes live.
+  - `SafeFileWriter` and the page-naming rules moved to `Workspace/Safety.swift` so the app and the
+    server share them; LP's behaviour is unchanged.
 - 2026-11-24 — **First-open help and a Download button**, after the owner saw macOS's "could not
   verify LP is free of malware" on 1.0.1 (LP is ad-hoc signed, not notarized). Branch
   `docs/first-open-gatekeeper`; website published, app unchanged. The website's Get LP section now

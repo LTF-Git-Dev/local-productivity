@@ -360,6 +360,26 @@ AppModel.handleReminder ◀── ReminderDelegate (nonisolated) ◀────
 | Widgets visually | `Scripts/render-widgets.sh` |
 | Builds | `Scripts/build.sh` (sandboxed Debug), Xcode plugin `BuildProject`, Release via `Scripts/deploy.sh` |
 
+## 10b. LP for Claude (MCP)
+
+`lp-mcp` (`MCP/`) is a separate command-line program: an MCP server over stdio (JSON-RPC 2.0, one
+message per line) that Claude Code or the Claude desktop app starts with `--workspace <folder>`. It
+compiles LP's Foundation-only code (`App/Day.swift`, `Markdown/`, `Workspace/PageTasks.swift`,
+`Workspace/Safety.swift`, `Boards/Model/`), so pages, tasks and boards are read and written exactly as
+the app does; it shares no state with the app, which picks up its changes like any other editor's.
+
+- **Files** (`AnchoredFiles`): one open handle on the workspace; every path walked from it with
+  `openat(O_NOFOLLOW)`; regular, non-hidden files only; reads capped at 4 MB; new pages written
+  under a hidden name then renamed exclusively; edits written beside the page and swapped in with
+  `renameatx_np(RENAME_SWAP)`, then the swapped-out version (content and metadata) compared with
+  what was read — a save made meanwhile is swapped back and the edit redone on top. Owner, group,
+  mode, flags, ACL, extended attributes and creation date are carried over or the edit is refused.
+- **Operations** (`LPVault`): 15 tools; edits of existing content need the page or board revision
+  (SHA-256 prefix) they read, and every change returns the new one; boards change only card by
+  card through `BoardParser`/`CardEdit`/`moveCards`; nothing is deleted.
+- **Tests**: the `mcp` suite drives `MCPServer.handle` directly; real clients are tried with a
+  one-off `--mcp-config` (docs/MCP.md, "For maintainers").
+
 ## 11. Build, release and rollback
 
 - **In-app updates.** `Updater` (app, sandboxed) reads LP's GitHub Releases (public API, no
