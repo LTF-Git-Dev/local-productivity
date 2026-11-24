@@ -842,7 +842,7 @@ def home() -> str:
   <div class="wrap privacy-grid">
     <div>
       <h2 id="claude-title">Work with Claude.</h2>
-      <p class="lead">New in LP 1.0.2: Claude Code and the Claude desktop app can read, write and update your notes,
+      <p class="lead">Since LP 1.0.2, Claude Code and the Claude desktop app can read, write and update your notes,
       tasks and boards. Ask “What’s overdue?” or “Plan my week on a board”.</p>
       <p class="lead">For Claude Code, turn it on in <strong>Settings › Claude</strong> (in LP 1.0.2: Settings › General): follow its four
       short steps in Terminal. The desktop app is set up by hand (see the user guide).</p>

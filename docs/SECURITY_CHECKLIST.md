@@ -159,6 +159,13 @@ request, the record untouched), then allowed (`share-trust ;; share-update` → 
 
 ## Record
 
+### v1.0.3 — 25 November 2026 (official)
+
+The official release is `v1.0.3-beta.2`'s own zip (records below). Verified signed-out: signature,
+checksum, the updater's strict check, no secrets or personal email; tests 1,632 / 0 failed from a
+clean checkout of the tag; a real in-app update 1.0.2 → 1.0.3 on the owner's Mac (restarted itself,
+app byte-identical to the release, settings kept). Codex clean.
+
 ### v1.0.3-beta.1 — 25 November 2026 (final testing before the beta)
 
 Changes: Settings one size (scrolls); Notifications on/off switch. No new data, network or file

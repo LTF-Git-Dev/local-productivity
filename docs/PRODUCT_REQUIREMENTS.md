@@ -8,7 +8,7 @@ away from their owner.
 |---|---|
 | Owner | LTF |
 | Platform | macOS 15 Sequoia or later (also 26 Tahoe and 27), Apple silicon and Intel; native SwiftUI + AppKit, with a WidgetKit extension |
-| Current version | **1.0.2** (2026-11-25): LP with Claude; before it 1.0.1 (2026-11-23) and the first release, 1.0.0 (2026-11-18) |
+| Current version | **1.0.3** (2026-11-25): Settings fits any screen, a Notifications switch, one-click New menus in the sidebar, a Claude tab in Settings; before it 1.0.2 (2026-11-25, LP with Claude), 1.0.1 (2026-11-23) and the first release, 1.0.0 (2026-11-18) |
 | Repository | github.com/LTF-Git-Dev/local-productivity (private) |
 | Status of this document | Living — update it whenever a feature ships, changes or is cut |
 
