@@ -56,6 +56,11 @@ func tool(_ name: String, _ arguments: [String: Any] = [:]) -> (error: Bool, tex
     return (result["isError"] as? Bool ?? true, text, json)
 }
 
+/// A board's current revision, as Claude gets it from lp_read_board.
+func rev(_ board: String) -> String { tool("lp_read_board", ["path": board]).json["revision"] as? String ?? "?" }
+/// A page's current revision, as Claude gets it from lp_read_page.
+func pageRev(_ page: String) -> String { tool("lp_read_page", ["path": page]).json["revision"] as? String ?? "?" }
+
 func allFiles() -> Set<String> {
     var found: Set<String> = []
     if let walker = fm.enumerator(at: root, includingPropertiesForKeys: nil) {
@@ -251,7 +256,8 @@ check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": 
       == "It was already done.", "ticking twice changes nothing")
 check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Decide on the image pipeline", "done": true]).text.contains("ordinal"),
       "two tasks reading the same need their ordinal")
-check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Decide on the image pipeline", "ordinal": 4, "done": true]).json["result"]
+check(tool("lp_set_task_done", ["path": "Projects/Website Redesign.md", "task": "Decide on the image pipeline", "ordinal": 4,
+                        "revision": pageRev("Projects/Website Redesign.md"), "done": true]).json["result"]
       as? String == "Ticked off.", "the ordinal picks one")
 check(read("Projects/Website Redesign.md")!.hasSuffix("- [ ] Decide on the image pipeline\n- [x] Decide on the image pipeline\n"),
       "the second one, not the first: \(read("Projects/Website Redesign.md")!.suffix(80))")
@@ -339,42 +345,42 @@ check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? 
       as? Bool == true, "is done")
 check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "time": "25:00"]).error, "an impossible time is refused")
 
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID, "title": "Press release v2", "due": "", "tags": ["pr"]]).error == false,
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "title": "Press release v2", "due": "", "tags": ["pr"]]).error == false,
       "a card is edited")
 let edited = ((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?.first?["cards"] as? [[String: Any]])?.first ?? [:]
 check(edited["title"] as? String == "Press release v2" && edited["tags"] as? [String] == ["pr"], "title and tags changed: \(edited)")
 check(edited["due"] is NSNull, "an empty due date clears it")
 check(edited["notes"] as? String == "Two paragraphs.\nOne quote.", "notes not mentioned stay")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID]).text.contains("Say what"), "nothing to change is refused")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID, "title": " "]).error, "a card needs a title")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID]).text.contains("Say what"), "nothing to change is refused")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "title": " "]).error, "a card needs a title")
 
-let moved = tool("lp_update_card", ["board": "Projects/Launch.md", "card": "press release V2", "move_to_list": "done"])
+let moved = tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": "press release V2", "move_to_list": "done"])
 check(moved.json["result"] as? String == "Updated. Moved to “Done”.", "moved by title (case ignored): \(moved.text)")
 let afterMove = tool("lp_read_board", ["path": "Projects/Launch.md"]).json
 check((afterMove["progress"] as? [String: Any])?["done"] as? Int == 2, "moving into Done counts it done")
 check((tool("lp_list_boards").json["boards"] as? [[String: Any]])?.first { $0["path"] as? String == "Projects/Launch.md" }?["percent_done"] as? Int == 100,
       "progress is listed per board")
-let reopened = tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID, "done": false])
+let reopened = tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "done": false])
 check(reopened.json["result"] as? String == "Updated. Moved to “Backlog”.", "reopening a done card moves it to the first open list: \(reopened.text)")
 tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Review", "title": "Proofread"])
-tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID, "move_to_list": "Review", "before_card": "Proofread"])
+tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "move_to_list": "Review", "before_card": "Proofread"])
 let review = ((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[3]["cards"] as? [[String: Any]] ?? [])
 check(review.map { $0["title"] as? String ?? "" } == ["Press release v2", "Proofread"], "placed before a card: \(review)")
 check(tool("lp_set_task_done", ["path": "Projects/Launch.md", "task": cardID, "done": true]).json["result"] as? String == "Updated.",
       "a card is ticked off like a task")
 check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[3]["cards"] as? [[String: Any]])?.first?["done"]
       as? Bool == true, "and stays in its list, done")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID, "move_to_list": "Nowhere"]).text.contains("no list"), "an unknown list")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": "ghost", "done": true]).text.contains("no card"), "an unknown card")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "move_to_list": "Nowhere"]).text.contains("no list"), "an unknown list")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": "ghost", "done": true]).text.contains("no card"), "an unknown card")
 
 // A board written by hand (no card IDs): cards are found by title, and get IDs when it's changed.
 let hand = tool("lp_read_board", ["path": "Projects/Hand Board.md"]).json
 let handCards = (hand["lists"] as? [[String: Any]])?.first?["cards"] as? [[String: Any]] ?? []
 check(handCards.allSatisfy { $0["id"] is NSNull }, "cards without stored ids show none")
-check(tool("lp_update_card", ["board": "Projects/Hand Board.md", "card": "Write copy", "done": true]).text.contains("2 cards"),
+check(tool("lp_update_card", ["board": "Projects/Hand Board.md", "revision": rev("Projects/Hand Board.md"), "card": "Write copy", "done": true]).text.contains("2 cards"),
       "two cards with one title need an id")
 check(read("Projects/Hand Board.md")!.contains("- [ ] Write copy\n- [ ] Write copy\n"), "reading and refusing never wrote the board")
-check(!tool("lp_update_card", ["board": "Projects/Hand Board.md", "card": "Shoot photos", "move_to_list": "Done"]).error, "moved by title")
+check(!tool("lp_update_card", ["board": "Projects/Hand Board.md", "revision": rev("Projects/Hand Board.md"), "card": "Shoot photos", "move_to_list": "Done"]).error, "moved by title")
 let handAfter = read("Projects/Hand Board.md")!
 check(handAfter.contains("{\"kanban-plugin\":\"basic\",\"lane-width\":300}"), "the board's own settings are kept")
 check(handAfter.contains("**Complete**") && handAfter.contains("\n\n\n## Done"), "the Kanban layout is kept: \(handAfter)")
@@ -382,7 +388,7 @@ let ids = (tool("lp_read_board", ["path": "Projects/Hand Board.md"]).json["lists
     .flatMap { $0["cards"] as? [[String: Any]] ?? [] }.map { $0["id"] }
 check(ids.allSatisfy { $0 is String }, "every card has a stored id now")
 let firstCopy = (((tool("lp_read_board", ["path": "Projects/Hand Board.md"]).json["lists"] as? [[String: Any]])?.first?["cards"]) as? [[String: Any]])?.first?["id"] as? String ?? ""
-check(!tool("lp_update_card", ["board": "Projects/Hand Board.md", "card": firstCopy, "done": true]).error, "then one copy is picked by id")
+check(!tool("lp_update_card", ["board": "Projects/Hand Board.md", "revision": rev("Projects/Hand Board.md"), "card": firstCopy, "done": true]).error, "then one copy is picked by id")
 check(BoardParser.serialize(BoardParser.parse(read("Projects/Hand Board.md")!)) == read("Projects/Hand Board.md")!,
       "the board is exactly as LP writes it")
 
@@ -396,7 +402,7 @@ let misspelt = tool("lp_list_tasks", ["stauts": "done"])
 check(misspelt.error && misspelt.text.contains("no argument “stauts”"), "a misspelt argument is refused, not ignored: \(misspelt.text)")
 let boolID = server.handle(#"{"jsonrpc":"2.0","id":true,"method":"ping"}"#).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
 check(((boolID?["error"] as? [String: Any])?["code"] as? Int) == -32600, "true isn't a request id")
-check(tool("lp_list_pages").json["truncated"] as? Bool == false, "a full scan says it's complete")
+check(tool("lp_list_pages").json["incomplete"] as? Bool == false, "a full scan says it's complete")
 
 // Paths are used exactly: " Note.md" isn't "Note.md".
 write("Note.md", "plain\n")
@@ -436,22 +442,22 @@ check(lanes.map { $0["title"] as? String ?? "" } == ["Backlog", "Next", "In prog
 let tidyCard = lanes.count > 1 ? (lanes[1]["cards"] as? [[String: Any]] ?? []).first { $0["id"] as? String == tidyID } : nil
 check(tidyCard?["title"] as? String == "Line one ## Fake list - [ ] Fake card", "the title stays one line: \(tidyCard?["title"] ?? "")")
 check(tidyCard?["tags"] as? [String] == ["ok", "a/b-c_d"], "tags lose their #")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "notes": "one\r\ntwo"]).error == false, "notes with Windows line breaks")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "notes": "one\r\ntwo"]).error == false, "notes with Windows line breaks")
 check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[1]["cards"] as? [[String: Any]] ?? [])
       .first { $0["id"] as? String == tidyID }?["notes"] as? String == "one\ntwo", "are kept as two lines")
 
 // Impossible card changes are explained, not reported as done.
 check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "time": "10:00"]).text.contains("due date"),
       "a time without a date is refused")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "time": "10:00"]).text.contains("due date"), "on an undated card too")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "move_to_list": "Done", "done": false]).text.contains("can’t be open"),
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "time": "10:00"]).text.contains("due date"), "on an undated card too")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "move_to_list": "Done", "done": false]).text.contains("can’t be open"),
       "open in a list that counts as done is refused")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "move_to_list": "Review", "before_card": "Old win"]).text.contains("isn’t in"),
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "move_to_list": "Review", "before_card": "Old win"]).text.contains("isn’t in"),
       "before a card in another list is refused")
-check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "title": "y", "before_card": "Old win"]).text.contains("only works with"),
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "title": "y", "before_card": "Old win"]).text.contains("only works with"),
       "before_card alone is refused")
 write("AllDone.md", "---\n\nkanban-plugin: basic\n\n---\n\n## Finished\n\n**Complete**\n- [x] Shipped ^cship01\n\n\n")
-check(tool("lp_update_card", ["board": "AllDone.md", "card": "cship01", "done": false]).text.contains("Every list"),
+check(tool("lp_update_card", ["board": "AllDone.md", "revision": rev("AllDone.md"), "card": "cship01", "done": false]).text.contains("Every list"),
       "a card can't be reopened when every list counts as done")
 
 // Look-alike tasks with different due dates.
@@ -463,12 +469,98 @@ check(tool("lp_set_task_done", ["path": "Reports.md", "task": "Send report", "or
       as? String == "Ticked off.", "a stale ordinal can't override the due date")
 check(read("Reports.md") == "- [x] Send report 📅 2026-11-30\n- [x] Send report 📅 2026-11-25\n", "still the one with that date")
 
+// MARK: Review fixes (Codex round 2)
+
+// A save that lands between reading and writing is never lost: the swap puts it back.
+write("Race.md", "theirs, saved meanwhile\n")
+let raced = try! server.vault.files.replace("Race.md", with: Data("ours\n".utf8), expected: Data("what we read\n".utf8))
+check(raced == .changedMeanwhile, "a replace over a file that changed reports it")
+check(read("Race.md") == "theirs, saved meanwhile\n", "and their save stands: \(read("Race.md") ?? "")")
+let clean = try! server.vault.files.replace("Race.md", with: Data("ours\n".utf8), expected: Data("theirs, saved meanwhile\n".utf8))
+check(clean == .done && read("Race.md") == "ours\n", "over the version it read, it's replaced")
+check(!allFiles().contains { ($0 as NSString).lastPathComponent.hasPrefix(".lp-mcp-") }, "no temporary files are left behind")
+
+// What a file carries besides its text survives an edit: Finder tags and its creation date.
+write("Tagged.md", "x\n")
+let taggedURL = root.appendingPathComponent("Tagged.md")
+try! (taggedURL as NSURL).setResourceValue(["Important"], forKey: .tagNamesKey)
+let born = Date(timeIntervalSince1970: 1_700_000_000)
+try! fm.setAttributes([.creationDate: born], ofItemAtPath: taggedURL.path)
+tool("lp_append_to_page", ["path": "Tagged.md", "content": "y"])
+let tagNames = (try? URL(fileURLWithPath: taggedURL.path).resourceValues(forKeys: [.tagNamesKey]))?.tagNames
+check(tagNames == ["Important"], "Finder tags survive an edit: \(tagNames ?? [])")
+let creation = (try? fm.attributesOfItem(atPath: taggedURL.path))?[.creationDate] as? Date
+check(creation.map { abs($0.timeIntervalSince(born)) < 1 } == true, "and so does the creation date: \(String(describing: creation))")
+check(read("Tagged.md") == "x\n\ny\n", "with the new text")
+
+// Card edits name the board version they're based on; each change hands back the next one.
+let board1 = rev("Projects/Launch.md")
+let addedCard = tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "Chained"])
+let chained = tool("lp_update_card", ["board": "Projects/Launch.md", "revision": addedCard.json["revision"] as? String ?? "",
+                                      "card": addedCard.json["added"] as? String ?? "", "move_to_list": "Review"])
+check(!chained.error, "the revision an add returns is enough for the next change: \(chained.text)")
+let staleCard = tool("lp_update_card", ["board": "Projects/Launch.md", "revision": board1, "card": "Chained", "notes": "overwrite"])
+check(staleCard.error && staleCard.text.contains("changed since"), "a revision from before is refused")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": "Chained", "title": "x"]).text.contains("“revision” is required"),
+      "lp_update_card needs a revision")
+check(tool("lp_set_task_done", ["path": "Projects/Launch.md", "task": "Chained", "revision": board1, "done": true]).text.contains("changed since"),
+      "so does ticking a card off, when it gives one")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": "Chained",
+                              "move_to_list": "Review", "before_card": "Chained"]).text.contains("before itself"), "a card can't go before itself")
+
+// Look-alike tasks: the ordinal counts only with the page's revision.
+write("Same.md", "- [ ] Call 📅 2026-11-26 09:00\n- [ ] Call 📅 2026-11-26 15:00\n")
+check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "ordinal": 1, "done": true]).text.contains("revision"),
+      "an ordinal alone isn't trusted")
+check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "time": "15:00", "done": true]).json["result"] as? String == "Ticked off.",
+      "the time tells them apart")
+check(read("Same.md") == "- [ ] Call 📅 2026-11-26 09:00\n- [x] Call 📅 2026-11-26 15:00\n", "the 15:00 one: \(read("Same.md") ?? "")")
+let sameTasks = (tool("lp_list_tasks", ["status": "all", "folder": ""]).json["tasks"] as? [[String: Any]] ?? []).filter { $0["path"] as? String == "Same.md" }
+check(sameTasks.allSatisfy { ($0["revision"] as? String)?.count == 16 }, "listed tasks carry their page's revision")
+write("Same.md", "- [ ] Call\n- [ ] Call\n")
+let sameRevision = pageRev("Same.md")
+check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "ordinal": 1, "revision": sameRevision, "done": true]).json["result"]
+      as? String == "Ticked off.", "with the revision, the ordinal picks one")
+check(tool("lp_set_task_done", ["path": "Same.md", "task": "Call", "ordinal": 0, "revision": sameRevision, "done": true]).text.contains("changed since"),
+      "and an old revision is refused")
+
+// Folders are used exactly as given.
+check(tool("lp_create_page", ["title": "In spaced", "folder": " Spaced"]).json["created"] as? String == " Spaced/In spaced.md", "a folder with a leading space")
+check(!exists("Spaced"), "isn't confused with one without")
+check((tool("lp_list_pages", ["folder": " Spaced"]).json["pages"] as? [Any])?.count == 1, "and is listed as itself")
+
+// Null arguments and number-only tags.
+let nullArguments = send("tools/call", ["name": "lp_daily_note", "arguments": NSNull()])
+check(((nullArguments?["error"] as? [String: Any])?["code"] as? Int) == -32602, "null arguments are refused")
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "tags": ["123"]]).text.contains("not only digits"),
+      "a number-only tag is refused (LP wouldn't read it as a tag)")
+
+// A folder that can't be read makes a scan incomplete — and then no daily note is made twice.
+write("Locked/2026-12-01.md", "the note\n")
+chmod(root.appendingPathComponent("Locked").path, 0o000)
+check(tool("lp_list_pages").json["incomplete"] as? Bool == true, "an unreadable folder makes the scan incomplete")
+check(tool("lp_daily_note", ["date": "2026-12-01"]).text.contains("couldn’t be scanned"), "and no second note is created")
+chmod(root.appendingPathComponent("Locked").path, 0o755)
+check(tool("lp_daily_note", ["date": "2026-12-01"]).json["path"] as? String == "Locked/2026-12-01.md", "once readable, the note is found")
+
+// A folder replaced by a link is refused when it's walked, for reading and writing alike.
+try! fm.createDirectory(at: root.appendingPathComponent("Swap"), withIntermediateDirectories: true)
+write("Swap/Doc.md", "inside\n")
+try! fm.removeItem(at: root.appendingPathComponent("Swap"))
+try! fm.createSymbolicLink(at: root.appendingPathComponent("Swap"), withDestinationURL: outside)
+try! Data("outside doc\n".utf8).write(to: outside.appendingPathComponent("Doc.md"))
+check(tool("lp_read_page", ["path": "Swap/Doc.md"]).text.contains("link"), "a swapped-in link is refused for reading")
+check(tool("lp_append_to_page", ["path": "Swap/Doc.md", "content": "x"]).error, "and for writing")
+check(tool("lp_create_page", ["title": "New", "folder": "Swap/Deeper"]).error, "and for making folders")
+check(try! String(contentsOf: outside.appendingPathComponent("Doc.md"), encoding: .utf8) == "outside doc\n", "outside is untouched")
+check(!fm.fileExists(atPath: outside.appendingPathComponent("Deeper").path), "no folder was made outside")
+
 // MARK: Nothing is ever deleted
 
 let before = allFiles()
 for _ in 0..<2 {
     tool("lp_create_page", ["title": "Welcome"])
-    tool("lp_update_card", ["board": "Projects/Launch.md", "card": cardID, "move_to_list": "Backlog"])
+    tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "move_to_list": "Backlog"])
     tool("lp_daily_note", ["append": "more"])
 }
 check(before.isSubset(of: allFiles()), "every file is still there: \(before.subtracting(allFiles()))")

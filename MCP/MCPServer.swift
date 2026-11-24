@@ -64,7 +64,7 @@ nonisolated final class MCPServer {
             guard let tool = Self.tools.first(where: { $0.name == name }) else {
                 return Self.encode(error: -32602, "There’s no tool called “\(name)”.", id: id)
             }
-            if let given = params["arguments"], !(given is NSNull), !(given is [String: Any]) {
+            if let given = params["arguments"], !(given is [String: Any]) {
                 return Self.encode(error: -32602, "A tool's arguments must be an object.", id: id)
             }
             let arguments = params["arguments"] as? [String: Any] ?? [:]
@@ -181,13 +181,13 @@ nonisolated final class MCPServer {
         case "lp_list_pages":
             let pages = try vault.pages(in: try a.optionalString("folder") ?? "")
             let formatter = ISO8601DateFormatter()
-            return Self.json(["count": pages.count, "truncated": vault.lastScanTruncated, "pages": pages.map {
+            return Self.json(["count": pages.count, "incomplete": vault.lastScanIncomplete, "pages": pages.map {
                 ["path": $0.path, "title": $0.title, "kind": $0.isBoard ? "board" : "page", "modified": formatter.string(from: $0.modified)]
             }])
 
         case "lp_search":
             let hits = try vault.search(try a.string("query"), limit: try a.optionalInt("limit") ?? 20)
-            return Self.json(["count": hits.count, "truncated": vault.lastScanTruncated, "results": hits.map { ["path": $0.path, "title": $0.title, "snippet": $0.snippet] }])
+            return Self.json(["count": hits.count, "incomplete": vault.lastScanIncomplete, "results": hits.map { ["path": $0.path, "title": $0.title, "snippet": $0.snippet] }])
 
         case "lp_read_page":
             let page = try vault.readPage(try a.string("path"))
@@ -201,11 +201,12 @@ nonisolated final class MCPServer {
             let dueBy = try a.optionalString("due_by").map { try day($0) }
             let tasks = try vault.tasks(filter, dueBy: dueBy, in: try a.optionalString("folder") ?? "")
             let now = today()
-            return Self.json(["today": now.iso, "count": tasks.count, "truncated": vault.lastScanTruncated, "tasks": tasks.map { task -> [String: Any] in
+            return Self.json(["today": now.iso, "count": tasks.count, "incomplete": vault.lastScanIncomplete, "tasks": tasks.map { task -> [String: Any] in
                 var item: [String: Any] = ["path": task.path, "text": task.text, "done": task.isDone,
                                            "due": task.due.map { $0.iso as Any } ?? NSNull(), "time": Self.iso(task.time),
                                            "overdue": !task.isDone && (task.due.map { $0 < now } ?? false)]
                 if let ordinal = task.ordinal { item["ordinal"] = ordinal }
+                item["revision"] = task.revision
                 if let list = task.list { item["board_list"] = list; item["card"] = task.cardID ?? task.text }
                 return item
             }])
@@ -213,7 +214,7 @@ nonisolated final class MCPServer {
         case "lp_list_boards":
             let now = today()
             let boards = try vault.boards(in: try a.optionalString("folder") ?? "")
-            return Self.json(["today": now.iso, "count": boards.count, "truncated": vault.lastScanTruncated, "boards": boards.map { board -> [String: Any] in
+            return Self.json(["today": now.iso, "count": boards.count, "incomplete": vault.lastScanIncomplete, "boards": boards.map { board -> [String: Any] in
                 ["path": board.path, "title": board.title, "cards": board.summary.total, "done": board.summary.done,
                  "percent_done": board.summary.percent, "overdue": board.summary.overdue(on: now),
                  "due_soon": board.summary.dueSoon(on: now),
@@ -221,11 +222,11 @@ nonisolated final class MCPServer {
             }])
 
         case "lp_read_board":
-            let (path, board) = try vault.readBoard(try a.string("path"))
+            let (path, board, revision) = try vault.readBoard(try a.string("path"))
             let summary = BoardSummary(board: board)
             let now = today()
             return Self.json([
-                "path": path, "board_id": board.boardID.map { $0 as Any } ?? NSNull(),
+                "path": path, "revision": revision, "board_id": board.boardID.map { $0 as Any } ?? NSNull(),
                 "progress": ["cards": summary.total, "done": summary.done, "percent_done": summary.percent,
                              "overdue": summary.overdue(on: now), "due_soon": summary.dueSoon(on: now)],
                 "lists": board.lanes.map { lane -> [String: Any] in
@@ -238,20 +239,21 @@ nonisolated final class MCPServer {
             ])
 
         case "lp_create_page":
-            let path = try vault.createPage(title: try a.string("title"), in: try a.optionalString("folder") ?? "",
+            let page = try vault.createPage(title: try a.string("title"), in: try a.optionalString("folder") ?? "",
                                             content: try a.optionalString("content") ?? "")
-            return Self.json(["created": path])
+            return Self.json(["created": page.path, "revision": page.revision])
 
         case "lp_append_to_page":
-            return Self.json(["updated": try vault.append(to: try a.string("path"), markdown: try a.string("content"))])
+            let page = try vault.append(to: try a.string("path"), markdown: try a.string("content"))
+            return Self.json(["updated": page.path, "revision": page.revision])
 
         case "lp_replace_text":
-            return Self.json(["updated": try vault.replaceText(in: try a.string("path"), find: try a.string("find"),
-                                                               with: try a.string("replace_with"))])
+            let page = try vault.replaceText(in: try a.string("path"), find: try a.string("find"), with: try a.string("replace_with"))
+            return Self.json(["updated": page.path, "revision": page.revision])
 
         case "lp_update_page":
-            return Self.json(["updated": try vault.replacePage(try a.string("path"), content: try a.string("content"),
-                                                               revision: try a.string("revision"))])
+            let page = try vault.replacePage(try a.string("path"), content: try a.string("content"), revision: try a.string("revision"))
+            return Self.json(["updated": page.path, "revision": page.revision])
 
         case "lp_daily_note":
             let date = try day(try a.optionalString("date") ?? "today")
@@ -263,23 +265,25 @@ nonisolated final class MCPServer {
             return Self.json(["path": note.path, "created": note.created, "revision": page.revision, "content": page.text])
 
         case "lp_set_task_done":
-            let message = try vault.setTaskDone(in: try a.string("path"), text: try a.string("task"),
+            let outcome = try vault.setTaskDone(in: try a.string("path"), text: try a.string("task"),
                                                 ordinal: try a.optionalInt("ordinal"),
-                                                due: try a.optionalString("due").map { try day($0) }, done: try a.bool("done"))
-            return Self.json(["result": message])
+                                                due: try a.optionalString("due").map { try day($0) },
+                                                time: try a.optionalString("time").map { try Self.time($0) },
+                                                revision: try a.optionalString("revision"), done: try a.bool("done"))
+            return Self.json(["result": outcome.result, "revision": outcome.revision])
 
         case "lp_create_board":
-            let path = try vault.createBoard(title: try a.string("title"), in: try a.optionalString("folder") ?? "",
-                                             template: try a.optionalString("template") ?? "simple")
-            let (_, board) = try vault.readBoard(path)
-            return Self.json(["created": path, "lists": board.lanes.map(\.title)])
+            let created = try vault.createBoard(title: try a.string("title"), in: try a.optionalString("folder") ?? "",
+                                                template: try a.optionalString("template") ?? "simple")
+            let (_, board, revision) = try vault.readBoard(created.path)
+            return Self.json(["created": created.path, "revision": revision, "lists": board.lanes.map(\.title)])
 
         case "lp_add_card":
-            let id = try vault.addCard(to: try a.string("board"), list: try a.string("list"), title: try a.string("title"),
+            let added = try vault.addCard(to: try a.string("board"), list: try a.string("list"), title: try a.string("title"),
                                        due: try a.optionalString("due").map { try day($0) },
                                        time: try a.optionalString("time").map { try Self.time($0) },
                                        tags: try a.optionalStrings("tags") ?? [], notes: try a.optionalString("notes") ?? "")
-            return Self.json(["added": id])
+            return Self.json(["added": added.id, "revision": added.revision])
 
         case "lp_update_card":
             var change = LPVault.CardChange()
@@ -300,7 +304,9 @@ nonisolated final class MCPServer {
             let hasChange = change.title != nil || change.tags != nil || change.changesDue || change.changesTime
                 || change.notes != nil || change.done != nil || change.moveTo != nil
             guard hasChange else { throw VaultError("Say what to change: title, due, time, tags, notes, done or move_to_list.") }
-            return Self.json(["result": try vault.updateCard(on: try a.string("board"), card: try a.string("card"), change)])
+            let outcome = try vault.updateCard(on: try a.string("board"), card: try a.string("card"), change,
+                                               revision: try a.string("revision"))
+            return Self.json(["result": outcome.result, "revision": outcome.revision])
 
         default:
             throw VaultError("There’s no tool called “\(name)”.")
@@ -393,6 +399,8 @@ nonisolated final class MCPServer {
              properties: ["path": text(pathText), "task": text("The task's text (pages) or the card's id or title (boards)."),
                           "ordinal": ["type": "integer", "minimum": 0, "description": "The task's ordinal from lp_list_tasks (pages only, optional)."],
                           "due": text("The task's due date from lp_list_tasks, if it has one (pages only) — tells look-alike tasks apart."),
+                          "time": text("The task's due time (HH:MM) from lp_list_tasks, if it has one (pages only)."),
+                          "revision": text("The page's revision from lp_list_tasks. Needed with ordinal when several tasks match; when given, refuses a page changed since."),
                           "done": ["type": "boolean", "description": "true to tick it off, false to reopen it."]],
              required: ["path", "task", "done"], readOnly: false, idempotent: true),
         Tool(name: "lp_create_board", title: "Create a board",
@@ -410,12 +418,13 @@ nonisolated final class MCPServer {
         Tool(name: "lp_update_card", title: "Update or move a card",
              description: "Changes a card — title, due date or time (empty text clears it), tags, notes, done — and/or moves it to another list (moving into a list that counts as done marks it done; out of one, open). Only what's given changes.",
              properties: ["board": text("The board's path."), "card": text("The card's id (from lp_read_board) or its exact title."),
+                          "revision": text("The board's revision from lp_read_board, or from the last lp_add_card / lp_update_card result. Refused if the board changed since: read it again."),
                           "title": text("New title."), "due": text("New due date, or empty text to remove it."),
                           "time": text("New due time HH:MM, or empty text to remove it."),
                           "tags": ["type": "array", "items": ["type": "string"], "description": "Replaces the card's tags."],
                           "notes": text("Replaces the card's notes."), "done": ["type": "boolean", "description": "Mark done or open."],
                           "move_to_list": text("Title of the list to move it to."),
                           "before_card": text("With move_to_list: put it before this card (id or title); default at the end.")],
-             required: ["board", "card"], readOnly: false, idempotent: false, destructive: true),
+             required: ["board", "card", "revision"], readOnly: false, idempotent: false, destructive: true),
     ]
 }

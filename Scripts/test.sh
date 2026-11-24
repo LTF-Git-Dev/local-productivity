@@ -82,7 +82,7 @@ run_suite mcp \
   "$SRC/Workspace/PageTasks.swift" \
   "$SRC/Workspace/Safety.swift" \
   "$SRC/Boards/Model/"*.swift \
-  "$ROOT/MCP/LPVault.swift" "$ROOT/MCP/MCPServer.swift" \
+  "$ROOT/MCP/AnchoredFiles.swift" "$ROOT/MCP/LPVault.swift" "$ROOT/MCP/MCPServer.swift" \
   "$ROOT/Tests/MCPTests/main.swift"
 
 exit $STATUS

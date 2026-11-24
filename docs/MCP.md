@@ -24,14 +24,27 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
 
 ## Safety
 
-- Only `.md` and `.markdown` files **inside the workspace folder**: no `..`, absolute paths, hidden
-  folders (`.lp`, `.obsidian`, `.git`) or links leading outside it.
+- Only regular `.md` and `.markdown` files **inside the workspace folder**: no `..`, absolute
+  paths, hidden folders (`.lp`, `.obsidian`, `.git`), links of any kind, pipes or devices. Every
+  path is walked from the workspace folder itself, one folder at a time, so a folder swapped for a
+  link can't redirect a read or a write.
 - **Nothing is ever deleted.** A new page never replaces a file ("Plan 2" when "Plan" exists).
-- Files that aren't UTF-8 text, or are larger than 4 MB, are left alone.
-- **Boards change card by card only**, through LP's board code, so they stay valid Kanban boards.
-- Every write checks the file didn't change since it was read (LP may be editing it); rewriting a
-  whole page needs the revision Claude read, so it can't overwrite edits made meanwhile.
-- In Claude, every tool except the six reading ones asks for your approval unless you allow it.
+- Files that aren't UTF-8 text, or are larger than 4 MB, are left alone, and nothing is written
+  that would pass 4 MB.
+- **Boards change card by card only**, through LP's board code, so they stay valid Kanban boards;
+  tags and titles can't inject lists or cards.
+- **A save made meanwhile is never lost.** The new version is written beside the file and swapped
+  in, in one step, and only over the version that was read: if LP (or anything else) saved in
+  between, its version is swapped back and the change is made again on top of it. Finder tags,
+  permissions and the creation date stay.
+- Edits that replace text need the **revision** they were based on — a whole page
+  (`lp_update_page`), a card (`lp_update_card`), and look-alike tasks — so Claude can't overwrite
+  something changed after it read it. Every change returns the new revision for the next step.
+- Results say when a scan was `incomplete` (an unreadable folder, or more than 20,000 pages); a
+  daily note is then never created twice.
+- In Claude, every tool except the six reading ones asks for your approval unless you allow it;
+  the three that can replace text (`lp_update_page`, `lp_replace_text`, `lp_update_card`) are
+  marked destructive.
 
 ## Connect it
 
@@ -70,7 +83,7 @@ To disconnect: `claude mcp remove --scope user lp`, or delete the `lp` entry fro
 
 ## For maintainers
 
-- Code: `MCP/LPVault.swift` (every operation, on LP's Foundation-only code: `Markdown/`,
+- Code: `MCP/AnchoredFiles.swift` (all file access: walked from the workspace folder without following links, bounded reads, atomic swap-and-verify writes, exclusive creates), `MCP/LPVault.swift` (every operation, on LP's Foundation-only code: `Markdown/`,
   `Workspace/PageTasks.swift`, `Workspace/Safety.swift` — `PathSafety`, `SafeFileWriter`,
   `PageNaming` — and `Boards/Model/`), `MCP/MCPServer.swift` (JSON-RPC 2.0 over stdio, one message
   per line; the tool list), `MCP/main.swift`. No dependencies.
