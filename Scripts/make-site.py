@@ -760,9 +760,11 @@ FACTS = [  # (icon, colour, title, text)
 
 CLAUDE_FACTS = [  # (icon, colour, title, text) — LP with Claude (1.0.2)
     ("shield-check", "mint", "You choose, every time",
-     "Before Claude reads or changes anything, LP itself asks you which workspace — and which folder in it — it may use."),
+     "Before Claude reads or changes anything, LP itself asks you which workspace — and which folder in it — it may use. "
+     "(In the Claude desktop app, one choice may last across its chats.)"),
     ("folder-simple", "sky", "Only what you chose",
-     "Claude reaches nothing else and can’t delete anything. If you save a page while Claude changes it, your save stands."),
+     "Claude reaches nothing else and can’t delete files. If you save a page in LP or Obsidian while Claude changes it, "
+     "your save stands."),
     ("kanban", "lilac", "Notes, tasks and boards",
      "Search and read pages, write to today’s note, tick tasks off, add and move cards — with the files staying plain Markdown."),
     ("key", "sand", "Runs on your Mac",
@@ -842,8 +844,8 @@ def home() -> str:
       <h2 id="claude-title">Work with Claude.</h2>
       <p class="lead">New in LP 1.0.2: Claude Code and the Claude desktop app can read, write and update your notes,
       tasks and boards. Ask “What’s overdue?” or “Plan my week on a board”.</p>
-      <p class="lead">Turn it on in <strong>Settings › General › LP with Claude</strong>: copy the setup command and
-      paste it in Terminal.</p>
+      <p class="lead">For Claude Code, turn it on in <strong>Settings › General › LP with Claude</strong>: copy the
+      setup command and paste it in Terminal. The desktop app is set up by hand (see the user guide).</p>
     </div>
     <div class="facts">{claude_facts}</div>
   </div>

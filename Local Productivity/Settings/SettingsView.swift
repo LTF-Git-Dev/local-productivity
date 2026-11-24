@@ -149,7 +149,7 @@ private struct ClaudeSettingsSection: View {
             Text("LP with Claude")
         } footer: {
             Text(isTranslocated ? "Move LP to your Applications folder first, then open it from there."
-                 : "Claude can then read and change this workspace’s notes, tasks and boards — never delete them. Each session, LP asks you in a form which workspace, and which folder in it, Claude may use.")
+                 : "For Claude Code. Claude can then read and change this workspace’s notes, tasks and boards — it can’t delete files. Each session, LP asks you in a form which workspace, and which folder in it, Claude may use. The Claude desktop app is set up by hand (see the user guide).")
         }
         .onChange(of: workspaceFolder) { copied = false }
     }

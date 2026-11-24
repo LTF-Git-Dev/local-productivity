@@ -171,11 +171,15 @@ nonisolated enum ClaudeSetup {
         "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// Clears the download flag macOS puts on the helper (it would block it), replaces any earlier
-    /// LP connection and connects this workspace.
+    /// Connects this workspace — unless LP is already connected (it says how to replace that rather
+    /// than replacing it), and only once the download flag macOS puts on the helper is gone (it would
+    /// block the helper). Messages contain no apostrophes, as they sit in single quotes.
     static func command(helper: String, workspace: String) -> String {
         let tool = shellQuoted(helper)
-        return "xattr -d com.apple.quarantine \(tool) 2>/dev/null; claude mcp remove --scope user lp 2>/dev/null; "
-            + "claude mcp add --scope user lp -- \(tool) --workspace \(shellQuoted(workspace))"
+        return "if claude mcp get lp >/dev/null 2>&1; then "
+            + "echo 'LP is already connected to Claude Code. To connect this workspace instead, run: claude mcp remove --scope user lp - then paste this command again.'; "
+            + "elif xattr -p com.apple.quarantine \(tool) >/dev/null 2>&1 && ! xattr -d com.apple.quarantine \(tool); then "
+            + "echo 'macOS still blocks the LP helper. Move LP to your Applications folder, open it from there and copy the command again.'; "
+            + "else claude mcp add --scope user lp -- \(tool) --workspace \(shellQuoted(workspace)); fi"
     }
 }

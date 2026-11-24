@@ -45,13 +45,14 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 ### New
 - **LP with Claude.** Claude Code and the Claude desktop app can now work with your notes: ask
   *"What's overdue?"*, *"Add today's standup to my daily note"* or *"Move the press release card
-  to Review"*. Claude can read, write and update pages, tasks and boards — and never delete
-  anything. Turn it on in **Settings → General → LP with Claude**: copy the setup command and
-  paste it in Terminal.
+  to Review"*. Claude can read, write and update pages, tasks and boards — it can't delete
+  files. For Claude Code, turn it on in **Settings → General → LP with Claude**: copy the setup
+  command and paste it in Terminal (the Claude desktop app is set up by hand; see the guide).
 - **You choose, every time.** Before Claude can read or change anything, LP itself asks you in a
   form which workspace — and which folder in it — Claude may use. Only your answer counts, and
-  nothing outside it can be reached.
-- **Your edits are safe.** If you save a page in LP while Claude changes it, your save stands;
+  nothing outside it can be reached. (In the Claude desktop app, one choice may last across its
+  chats until you quit it.)
+- **Your edits are safe.** If you save a page in LP or Obsidian while Claude changes it, your save stands;
   hidden, read-only and locked files are left alone; Finder tags and permissions are kept.
 
 ## 1.0.1 — 2026-11-23

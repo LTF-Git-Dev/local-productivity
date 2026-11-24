@@ -4,8 +4,8 @@
 
 ## The short version
 
-- **LP has no servers, no accounts, no analytics, no ads and no tracking.** Nobody — including
-  the people who make LP — receives your notes, boards, calendar or anything about how you use it.
+- **LP has no servers, no accounts, no analytics, no ads and no tracking.** The people who make LP
+  never receive your notes, boards, calendar or anything about how you use it.
 - **Your notes and boards are files in a folder you choose, on your Mac.** LP reads and writes
   them there and nowhere else.
 - **LP only goes online for what you use:** to sync the calendar accounts you connect (Google,
@@ -122,7 +122,8 @@ desktop app read and change your notes, tasks and boards — only if you connect
 (**Settings → General → LP with Claude**). The helper runs on your Mac, has no network access of
 its own and keeps nothing: it reads and writes the Markdown files in the workspace you choose. In
 each session LP asks you, in a form, which workspace — and which folder in it — Claude may use;
-Claude can reach nothing else and can't delete anything. What Claude reads there is sent to
+Claude can reach nothing else and can't delete files (it can change or remove text in them). In the
+Claude desktop app, one choice may last across its chats until you quit it. What Claude reads there is sent to
 Anthropic by the Claude app, as with anything else you share with Claude; Anthropic's privacy
 policy applies to it. To disconnect, run `claude mcp remove --scope user lp` (or remove `lp` from
 the Claude desktop app's settings).
