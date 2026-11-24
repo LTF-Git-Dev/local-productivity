@@ -50,8 +50,8 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## 1.0.3
 
-- **Settings fits your screen.** It has one size for every tab** and scrolls when a tab is longer, so it fits any screen
-  (General had grown taller than a laptop screen with the LP with Claude steps).
+- **Settings fits your screen.** Every tab has the same size and scrolls when it's longer (General
+  had grown taller than a laptop screen with the LP with Claude steps).
 - **Notifications on/off switch** at the top of Settings → Notifications. Off cancels every reminder
   and snooze LP has waiting (at once, and LP waits for it when quitting); on plans them again. Your
   choices for what to be reminded about are kept. Notifications already shown stay.
