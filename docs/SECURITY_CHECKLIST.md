@@ -159,6 +159,21 @@ request, the record untouched), then allowed (`share-trust ;; share-update` → 
 
 ## Record
 
+### v1.0.2-beta.1 — 24 November 2026
+
+LP 1.0.2 = LP for Claude (see the MCP record below) shipped inside LP.app, plus the Settings section.
+
+| # | Result | Found, and what was done |
+|---|---|---|
+| 1 Secrets | ✅ | None added; the helper has no network access and no keys. |
+| 2 Ownership | ✅ | The helper reaches only the workspace the person picks in LP's form each session (MCP elicitation), never anything else; covered by the `mcp` suite. |
+| 3 Database rules | ✅ n/a | No database. |
+| 4 Mass assignment | ✅ | The setup command quotes every path for the shell (`ClaudeSetup`, tested with hostile folder names). |
+| 5 Payments | ✅ n/a | None. |
+| 6 Rate limits | ✅ | Unchanged. |
+| 7 Prove it | ✅ | All suites 0 failed; `ownership` 29 passed. |
+
+
 ### LP for Claude (MCP) — 24 November 2026 (`feature/lp-mcp`, not released)
 
 | # | Result | Found, and what was done |

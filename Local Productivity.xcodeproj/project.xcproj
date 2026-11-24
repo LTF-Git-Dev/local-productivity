@@ -13,7 +13,36 @@
   "files": [
     { "path": "Local-Productivity-Info.plist" },
     { "path": "LPWidgetsExtension.entitlements" },
-    { "kind": "folder", "path": "Local Productivity", "target-membership": [ "Local Productivity" ] },
+    {
+      "kind": "folder",
+      "path": "Local Productivity",
+      "target-membership": [
+        "Local Productivity",
+      ],
+      "membership-exceptions": [
+        {
+          "target": "lp-mcp",
+          "exclusions": [
+            "App/Day.swift",
+            "Workspace/PageTasks.swift",
+            "Workspace/Safety.swift",
+            "Markdown/FrontMatter.swift",
+            "Markdown/InlineParser.swift",
+            "Markdown/InlineSerializer.swift",
+            "Markdown/MarkdownModel.swift",
+            "Markdown/MarkdownParser.swift",
+            "Markdown/MarkdownSerializer.swift",
+            "Boards/Model/BoardActivity.swift",
+            "Boards/Model/BoardLayout.swift",
+            "Boards/Model/BoardModel.swift",
+            "Boards/Model/BoardParser.swift",
+            "Boards/Model/BoardReport.swift",
+            "Boards/Model/GoogleDriveMapping.swift",
+          ],
+        },
+      ],
+    },
+    { "kind": "folder", "path": "MCP", "target-membership": [ "lp-mcp" ] },
     { "kind": "folder", "path": "Shared", "target-membership": [ "LPWidgetsExtension", "Local Productivity" ] },
     { "kind": "folder", "path": "UpdateCore", "target-membership": [ "LPUpdateInstaller", "Local Productivity" ] },
     {
@@ -58,6 +87,7 @@
       "children": [
         { "path": "<PRODUCTS>/LP.app", "id": "ADE4885930AAEFEA00E7A4B9", "type": "wrapper.application", "index": false },
         { "path": "<PRODUCTS>/LPUpdateInstaller.xpc", "id": "B1A5C0DE30C0FFEE00A1B2C3", "type": "wrapper.xpc-service", "index": false, "target-membership": [ { "build-phase": "Local Productivity/copy/Embed XPC Services", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/lp-mcp", "id": "C0DE1E5530C0FFEE00A1B2C5", "type": "compiled.mach-o.executable", "index": false, "target-membership": [ { "build-phase": "Local Productivity/copy/Embed Helpers", "code-sign-on-copy": true } ] },
         { "path": "<PRODUCTS>/LPWidgetsExtension.appex", "id": "ADA3D15E30AD543300B0765C", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "Local Productivity/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy" } ] },
       ],
     },
@@ -71,6 +101,7 @@
       "dependencies": [
         "LPWidgetsExtension",
         "LPUpdateInstaller",
+        "lp-mcp",
       ],
       "build-phases": [
         "compile-sources",
@@ -86,6 +117,12 @@
           "name": "Embed XPC Services",
           "bundle-base-path": "contents-directory",
           "relative-path": "XPCServices",
+        },
+        {
+          "kind": "copy",
+          "name": "Embed Helpers",
+          "bundle-base-path": "contents-directory",
+          "relative-path": "Helpers",
         },
       ],
       "build-settings": {
@@ -205,6 +242,26 @@
         "SWIFT_VERSION": "5.0",
       },
     },
+    {
+      "name": "lp-mcp",
+      "id": "C0DE1E5530C0FFEE00A1B2C6",
+      "product": "Products/lp-mcp",
+      "product-type": "tool",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+      ],
+      "build-settings": {
+        "CODE_SIGN_STYLE": "Automatic",
+        "PRODUCT_BUNDLE_IDENTIFIER": "LTF.Local-Productivity.lp-mcp",
+        "ENABLE_APP_SANDBOX": "NO",
+        "ENABLE_HARDENED_RUNTIME": "YES",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SKIP_INSTALL": "YES",
+        "SUPPORTED_PLATFORMS": "macosx",
+        "SWIFT_VERSION": "5.0",
+      },
+    },
   ],
   "build-settings": {
     "ALWAYS_SEARCH_USER_PATHS": "NO",
@@ -262,7 +319,7 @@
     "GCC_WARN_UNUSED_VARIABLE": "YES",
     "LOCALIZATION_PREFERS_STRING_CATALOGS": "YES",
     "MACOSX_DEPLOYMENT_TARGET": "15.0",
-    "MARKETING_VERSION": "1.0.1",
+    "MARKETING_VERSION": "1.0.2",
     "MTL_ENABLE_DEBUG_INFO[config=Debug]": "INCLUDE_SOURCE",
     "MTL_ENABLE_DEBUG_INFO[config=Release]": "NO",
     "MTL_FAST_MATH": "YES",

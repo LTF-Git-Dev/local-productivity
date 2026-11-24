@@ -100,5 +100,13 @@ do {
     check(ShareGrantKey.parts(of: "no separators") == nil, "a key without its parts is nothing")
 }
 
+// ClaudeSetup: the pasted Terminal command can't be broken by a folder's name.
+check(ClaudeSetup.shellQuoted("plain") == "'plain'", "simple text is quoted")
+check(ClaudeSetup.shellQuoted("it's; rm -rf ~") == "'it'\\''s; rm -rf ~'", "a quote inside can't end the quoting")
+let setup = ClaudeSetup.command(helper: "/Applications/LP.app/Contents/Helpers/lp-mcp", workspace: "/Users/me/My Notes; echo hi")
+check(setup.contains("--workspace '/Users/me/My Notes; echo hi'"), "the workspace is one quoted word: \(setup)")
+check(setup.hasPrefix("xattr -d com.apple.quarantine '/Applications/LP.app/Contents/Helpers/lp-mcp'"), "the helper's download flag is cleared first")
+check(setup.contains("claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp'"), "then Claude Code is connected")
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

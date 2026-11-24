@@ -89,6 +89,7 @@ private struct GeneralSettings: View {
             }
 
             UpdateSettingsSection(updater: app.updater)
+            ClaudeSettingsSection(workspaceFolder: app.workspace?.rootURL)
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
@@ -116,6 +117,41 @@ private struct UpdateSettingsSection: View {
         } footer: {
             Text("LP looks for new versions on its GitHub page once a day and asks before installing one. Betas get new features first and may have rough edges.")
         }
+    }
+}
+
+/// Settings → General → LP with Claude: the command that connects Claude Code to this workspace
+/// through the helper inside LP.app (docs/MCP.md).
+private struct ClaudeSettingsSection: View {
+    let workspaceFolder: URL?
+    @State private var copied = false
+
+    private var helper: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/lp-mcp") }
+    private var helperIsHere: Bool { FileManager.default.fileExists(atPath: helper.path) }
+    /// LP opened from Downloads runs from a temporary copy that disappears: the command would point there.
+    private var isTranslocated: Bool { Bundle.main.bundlePath.contains("/AppTranslocation/") }
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                Button(copied ? "Copied" : "Copy Setup Command") {
+                    guard let workspaceFolder else { return }
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(ClaudeSetup.command(helper: helper.path, workspace: workspaceFolder.path), forType: .string)
+                    copied = true
+                }
+                .disabled(workspaceFolder == nil || !helperIsHere || isTranslocated)
+            } label: {
+                Text("Connect Claude Code to this workspace")
+                Text("Paste it in Terminal, then start a new Claude Code session.")
+            }
+        } header: {
+            Text("LP with Claude")
+        } footer: {
+            Text(isTranslocated ? "Move LP to your Applications folder first, then open it from there."
+                 : "Claude can then read and change this workspace’s notes, tasks and boards — never delete them. Each session, LP asks you in a form which workspace, and which folder in it, Claude may use.")
+        }
+        .onChange(of: workspaceFolder) { copied = false }
     }
 }
 

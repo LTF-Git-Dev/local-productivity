@@ -40,6 +40,20 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
   has a **Download LP** button (`releases/latest`; the site had no download link since it was
   built while the repository was private) and the Open Anyway steps; README quotes the message.
 
+## 1.0.2
+
+### New
+- **LP with Claude.** Claude Code and the Claude desktop app can now work with your notes: ask
+  *"What's overdue?"*, *"Add today's standup to my daily note"* or *"Move the press release card
+  to Review"*. Claude can read, write and update pages, tasks and boards — and never delete
+  anything. Turn it on in **Settings → General → LP with Claude**: copy the setup command and
+  paste it in Terminal.
+- **You choose, every time.** Before Claude can read or change anything, LP itself asks you in a
+  form which workspace — and which folder in it — Claude may use. Only your answer counts, and
+  nothing outside it can be reached.
+- **Your edits are safe.** If you save a page in LP while Claude changes it, your save stands;
+  hidden, read-only and locked files are left alone; Finder tags and permissions are kept.
+
 ## 1.0.1 — 2026-11-23
 
 ### New

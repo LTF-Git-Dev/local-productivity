@@ -377,6 +377,11 @@ the app does; it shares no state with the app, which picks up its changes like a
 - **Operations** (`LPVault`): 15 tools; edits of existing content need the page or board revision
   (SHA-256 prefix) they read, and every change returns the new one; boards change only card by
   card through `BoardParser`/`CardEdit`/`moveCards`; nothing is deleted.
+- **Shipped inside LP.app** (1.0.2): the `lp-mcp` tool target (shared Foundation-only sources plus `MCP/`,
+  no sandbox, hardened runtime) is copied to `LP.app/Contents/Helpers/lp-mcp` and signed with the app, so
+  the in-app updater keeps it current. Settings → General → LP with Claude copies the setup command
+  (`ClaudeSetup.command`, shell-quoted, tested in `safety`): it clears the download quarantine on the
+  helper (macOS otherwise refuses to run it) and runs `claude mcp add --scope user lp`.
 - **Tests**: the `mcp` suite drives `MCPServer.handle` directly; real clients are tried with a
   one-off `--mcp-config` (docs/MCP.md, "For maintainers").
 

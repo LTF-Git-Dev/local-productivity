@@ -758,6 +758,17 @@ FACTS = [  # (icon, colour, title, text)
      "No analytics, no telemetry and no ads. Nothing about how you use LP is sent anywhere."),
 ]
 
+CLAUDE_FACTS = [  # (icon, colour, title, text) — LP with Claude (1.0.2)
+    ("shield-check", "mint", "You choose, every time",
+     "Before Claude reads or changes anything, LP itself asks you which workspace — and which folder in it — it may use."),
+    ("folder-simple", "sky", "Only what you chose",
+     "Claude reaches nothing else and can’t delete anything. If you save a page while Claude changes it, your save stands."),
+    ("kanban", "lilac", "Notes, tasks and boards",
+     "Search and read pages, write to today’s note, tick tasks off, add and move cards — with the files staying plain Markdown."),
+    ("key", "sand", "Runs on your Mac",
+     "LP’s helper has no network access of its own. What Claude reads goes to Anthropic, as with anything you share with Claude."),
+]
+
 LEDGER = [  # (service, when, [(permission, what LP does with it)], note)
     ("Google Calendar", "", [
         ("calendar.calendarlist.readonly", "Shows the list of your calendars."),
@@ -786,6 +797,8 @@ def home() -> str:
       </article>""")
     facts = "".join(f"""<div class="fact tile-{colour}"><span class="tile-icon">{icon(symbol)}</span><h3>{title}</h3><p>{text}</p></div>"""
                     for symbol, colour, title, text in FACTS)
+    claude_facts = "".join(f"""<div class="fact tile-{colour}"><span class="tile-icon">{icon(symbol)}</span><h3>{title}</h3><p>{text}</p></div>"""
+                           for symbol, colour, title, text in CLAUDE_FACTS)
     rows = []
     for service, when, scopes, note in LEDGER:
         when_html = f"<p>{when}</p>" if when else ""
@@ -820,6 +833,19 @@ def home() -> str:
     <div class="bento">
       {"".join(tiles)}
     </div>
+  </div>
+</section>
+
+<section class="section privacy" id="claude" aria-labelledby="claude-title">
+  <div class="wrap privacy-grid">
+    <div>
+      <h2 id="claude-title">Work with Claude.</h2>
+      <p class="lead">New in LP 1.0.2: Claude Code and the Claude desktop app can read, write and update your notes,
+      tasks and boards. Ask “What’s overdue?” or “Plan my week on a board”.</p>
+      <p class="lead">Turn it on in <strong>Settings › General › LP with Claude</strong>: copy the setup command and
+      paste it in Terminal.</p>
+    </div>
+    <div class="facts">{claude_facts}</div>
   </div>
 </section>
 

@@ -161,3 +161,21 @@ nonisolated enum PageNaming {
         return candidate
     }
 }
+
+/// The Terminal command that connects Claude Code to a workspace through the `lp-mcp` helper
+/// inside LP.app (Settings → General → LP with Claude). Paths are quoted for the shell, so a
+/// folder name can never run as a command.
+nonisolated enum ClaudeSetup {
+    /// `text` in single quotes for zsh/bash; a single quote inside becomes '\''.
+    static func shellQuoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// Clears the download flag macOS puts on the helper (it would block it), replaces any earlier
+    /// LP connection and connects this workspace.
+    static func command(helper: String, workspace: String) -> String {
+        let tool = shellQuoted(helper)
+        return "xattr -d com.apple.quarantine \(tool) 2>/dev/null; claude mcp remove --scope user lp 2>/dev/null; "
+            + "claude mcp add --scope user lp -- \(tool) --workspace \(shellQuoted(workspace))"
+    }
+}

@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Last updated: 22 November 2026 · applies to LP 1.0.1 and later*
+*Last updated: 24 November 2026 · applies to LP 1.0.2 and later*
 
 ## The short version
 
@@ -13,6 +13,9 @@
   or GitHub — and, once a day unless you turn it off, to ask LP's public GitHub page whether
   there is a new version. Apple Calendar never leaves your Mac through LP.
 - **LP takes only what it needs** for each of those, keeps it on your Mac, and lets you remove it.
+- **If you connect Claude** (optional), LP's helper works on your Mac only and sends nothing
+  anywhere itself; what Claude reads from the workspace you choose goes to Anthropic, under
+  Anthropic's terms, like anything else you share with Claude.
 
 ## Who this is about
 
@@ -111,6 +114,18 @@ User-Agent and nothing else about you: no account, no identifier, no notes. GitH
 website, sees your IP address (see GitHub's privacy statement above). If there is a new version
 and you choose to install it, LP downloads it from GitHub. You can turn the daily check off in
 **Settings → General → Updates**; when and what LP last checked stays in LP's preferences.
+
+## LP with Claude (optional)
+
+LP 1.0.2 and later include a helper (`lp-mcp`, inside LP.app) that lets Claude Code or the Claude
+desktop app read and change your notes, tasks and boards — only if you connect it yourself
+(**Settings → General → LP with Claude**). The helper runs on your Mac, has no network access of
+its own and keeps nothing: it reads and writes the Markdown files in the workspace you choose. In
+each session LP asks you, in a form, which workspace — and which folder in it — Claude may use;
+Claude can reach nothing else and can't delete anything. What Claude reads there is sent to
+Anthropic by the Claude app, as with anything else you share with Claude; Anthropic's privacy
+policy applies to it. To disconnect, run `claude mcp remove --scope user lp` (or remove `lp` from
+the Claude desktop app's settings).
 
 ## Only the data that's needed
 
