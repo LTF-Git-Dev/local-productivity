@@ -796,8 +796,8 @@ def home() -> str:
           <dl class="scopes">{scope_html}</dl>{note_html}
         </div>""")
     contact = (f"""<p>Questions or problems? Write to <span class="nowrap">{SUPPORT_EMAIL}</span>.</p>""" if SUPPORT_EMAIL else "")
-    contact_button = (f"""<a class="button button-primary" href="mailto:{SUPPORT_EMAIL}">{icon("envelope-simple")}Email support</a>"""
-                      if SUPPORT_EMAIL else "")
+    # The download: the newest official release (the support address stays in the line above).
+    contact_button = f"""<a class="button button-primary" href="https://github.com/LTF-Git-Dev/local-productivity/releases/latest">Download LP{icon("arrow-right")}</a>"""
     body = f"""<section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-copy">
     <img class="hero-icon" src="icon.png" width="92" height="92" alt="LP">
@@ -864,6 +864,9 @@ def home() -> str:
       <div>
         <h2 id="get-title">Get LP</h2>
         <p>LP runs on macOS 15 and later. It is free, and its code is under the <a href="license.html">MIT License</a>.</p>
+        <p><strong>Opening it the first time:</strong> LP isn’t from the App Store, so macOS may say it “could not verify LP is
+        free of malware”. Click Done, open System Settings → Privacy &amp; Security, and click <strong>Open Anyway</strong>
+        next to the message about LP. You only do this once; updates from inside LP don’t ask again.</p>
         {contact}
       </div>
       {contact_button}

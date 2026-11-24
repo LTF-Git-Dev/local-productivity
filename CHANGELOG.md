@@ -9,7 +9,11 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
-Nothing yet.
+- 2026-11-24 — **First-open help and a Download button**, after the owner saw macOS's "could not
+  verify LP is free of malware" on 1.0.1 (LP is ad-hoc signed, not notarized). Branch
+  `docs/first-open-gatekeeper`; website published, app unchanged. The website's Get LP section now
+  has a **Download LP** button (`releases/latest`; the site had no download link since it was
+  built while the repository was private) and the Open Anyway steps; README quotes the message.
 
 ## 1.0.1 — 2026-11-23
 

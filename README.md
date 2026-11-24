@@ -103,7 +103,8 @@ also attached to each release).
    to Applications — or open `Local Productivity.xcodeproj` in Xcode 27 and press **Run** (`⌘R`).
    LP needs macOS 15 or later. Releases marked **Pre-release** (`LP-1.0.1-beta.1.zip`, say) are
    betas, published for testing before a version becomes official.
-   The first time, macOS may say LP can't be opened (it isn't from the App Store): open
+   The first time, macOS may say it "could not verify LP is free of malware" (LP isn't from the
+   App Store or notarized by Apple): click **Done**, open
    **System Settings → Privacy & Security** and click **Open Anyway** next to the message about LP.
 2. Choose a folder. An existing Obsidian vault works as it is; so does an empty folder.
    After that, LP keeps itself up to date: it checks the Releases page once a day and asks before
