@@ -89,12 +89,21 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
 
 ## Connect it
 
-**Claude Code — the easy way (LP 1.0.2 and later):** open LP, go to **Settings → General → LP with
-Claude**, click **Copy Setup Command**, paste it in Terminal and press Return, then start a new Claude
-Code session. The command connects Claude Code to the workspace LP has open, using the helper inside
-LP.app (`/Applications/LP.app/Contents/Helpers/lp-mcp`), after clearing the flag macOS puts on
-downloaded programs (which would block the helper). If LP is already connected, it changes nothing
-and tells you how to replace the connection. LP's in-app updates keep the helper up to date.
+**Claude Code — the easy way (LP 1.0.2 and later):** open LP and go to **Settings → General → LP with
+Claude**. It shows four steps, each with its own short command and a **Copy** button, filled in for
+your Mac and the workspace LP has open:
+
+1. In Terminal, let LP's helper run — once, after downloading LP (macOS blocks programs that came in
+   a download until this flag is cleared; "No such xattr" means there's nothing to do):
+   `xattr -d com.apple.quarantine '/Applications/LP.app/Contents/Helpers/lp-mcp'`
+2. Connect Claude Code to the workspace:
+   `claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp' --workspace '/path/to/your LP folder'`
+3. Check it's connected (it says "✔ Connected"): `claude mcp get lp`
+4. Start a new Claude Code session and ask, for example, "What's overdue in LP?" — LP asks you which
+   workspace, and which folder in it, Claude may use.
+
+Already connected to another workspace? Remove that first: `claude mcp remove lp --scope user`.
+LP's in-app updates keep the helper up to date.
 
 **Claude Code — by hand** (for every project, `--scope user`; one `--workspace` per folder Claude may
 ever be offered):

@@ -120,38 +120,73 @@ private struct UpdateSettingsSection: View {
     }
 }
 
-/// Settings → General → LP with Claude: the command that connects Claude Code to this workspace
-/// through the helper inside LP.app (docs/MCP.md).
+/// Settings → General → LP with Claude: the steps that connect Claude Code to this workspace
+/// through the helper inside LP.app — one short Terminal command each (docs/MCP.md).
 private struct ClaudeSettingsSection: View {
     let workspaceFolder: URL?
-    @State private var copied = false
 
-    private var helper: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/lp-mcp") }
-    private var helperIsHere: Bool { FileManager.default.fileExists(atPath: helper.path) }
-    /// LP opened from Downloads runs from a temporary copy that disappears: the command would point there.
+    private var helper: String { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/lp-mcp").path }
+    private var helperIsHere: Bool { FileManager.default.fileExists(atPath: helper) }
+    /// LP opened from Downloads runs from a temporary copy that disappears: the steps would point there.
     private var isTranslocated: Bool { Bundle.main.bundlePath.contains("/AppTranslocation/") }
 
     var body: some View {
         Section {
-            LabeledContent {
-                Button(copied ? "Copied" : "Copy Setup Command") {
-                    guard let workspaceFolder else { return }
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(ClaudeSetup.command(helper: helper.path, workspace: workspaceFolder.path), forType: .string)
-                    copied = true
-                }
-                .disabled(workspaceFolder == nil || !helperIsHere || isTranslocated)
-            } label: {
-                Text("Connect Claude Code to this workspace")
-                Text("Paste it in Terminal, then start a new Claude Code session.")
+            if isTranslocated || !helperIsHere {
+                Text("Move LP to your Applications folder and open it from there to see the steps.")
+                    .foregroundStyle(Color.lpInkSecondary)
+            } else if let workspaceFolder {
+                ClaudeStep(number: 1, title: "Open Terminal and let LP’s helper run (once, after downloading LP). If it says “No such xattr”, there’s nothing to do.",
+                           command: ClaudeSetup.allowHelper(helper))
+                ClaudeStep(number: 2, title: "Connect Claude Code to this workspace.",
+                           command: ClaudeSetup.connect(helper: helper, workspace: workspaceFolder.path))
+                ClaudeStep(number: 3, title: "Check it’s connected: it should say “✔ Connected”.", command: ClaudeSetup.check)
+                ClaudeStep(number: 4, title: "Start a new Claude Code session and ask, for example, “What’s overdue in LP?”. LP asks you which workspace, and which folder in it, Claude may use.",
+                           command: nil)
+            } else {
+                Text("Open a workspace first.").foregroundStyle(Color.lpInkSecondary)
             }
         } header: {
             Text("LP with Claude")
         } footer: {
-            Text(isTranslocated ? "Move LP to your Applications folder first, then open it from there."
-                 : "For Claude Code. Claude can then read and change this workspace’s notes, tasks and boards — it can’t delete files. Each session, LP asks you in a form which workspace, and which folder in it, Claude may use. The Claude desktop app is set up by hand (see the user guide).")
+            Text("Claude can then read and change this workspace’s notes, tasks and boards — it can’t delete files. Already connected to another workspace? Remove that first with “\(ClaudeSetup.remove)”. The Claude desktop app is set up by hand (see the user guide).")
         }
-        .onChange(of: workspaceFolder) { copied = false }
+    }
+}
+
+/// One numbered step: what to do and, if there is one, the command to paste in Terminal.
+private struct ClaudeStep: View {
+    let number: Int
+    let title: String
+    let command: String?
+    @State private var copied = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(number).").monospacedDigit().foregroundStyle(Color.lpInkSecondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).fixedSize(horizontal: false, vertical: true)
+                if let command {
+                    HStack(alignment: .center, spacing: 10) {
+                        Text(command)
+                            .font(.lp(size: 12, design: .monospaced))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button(copied ? "Copied" : "Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(command, forType: .string)
+                            copied = true
+                        }
+                        .help("Copy this command")
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .lpFillInlineCode), in: RoundedRectangle(cornerRadius: Metrics.radiusSmall))
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .onChange(of: command) { copied = false }
     }
 }
 

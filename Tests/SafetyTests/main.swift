@@ -100,16 +100,15 @@ do {
     check(ShareGrantKey.parts(of: "no separators") == nil, "a key without its parts is nothing")
 }
 
-// ClaudeSetup: the pasted Terminal command can't be broken by a folder's name.
+// ClaudeSetup: the Terminal steps can't be broken by a folder's name.
 check(ClaudeSetup.shellQuoted("plain") == "'plain'", "simple text is quoted")
 check(ClaudeSetup.shellQuoted("it's; rm -rf ~") == "'it'\\''s; rm -rf ~'", "a quote inside can't end the quoting")
-let setup = ClaudeSetup.command(helper: "/Applications/LP.app/Contents/Helpers/lp-mcp", workspace: "/Users/me/My Notes; echo hi")
-check(setup.contains("--workspace '/Users/me/My Notes; echo hi'"), "the workspace is one quoted word: \(setup)")
-check(setup.hasPrefix("if claude mcp get lp"), "an existing connection is never replaced silently")
-check(setup.contains("xattr -d com.apple.quarantine '/Applications/LP.app/Contents/Helpers/lp-mcp'"), "the helper's download flag is cleared")
-check(!setup.contains("mcp remove --scope user lp 2>"), "nothing is removed by the command itself")
-check(setup.contains("[ ! -x '/Applications/LP.app/Contents/Helpers/lp-mcp' ]"), "a missing helper is never registered")
-check(setup.contains("claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp'"), "then Claude Code is connected")
+let helperPath = "/Applications/LP.app/Contents/Helpers/lp-mcp"
+check(ClaudeSetup.allowHelper(helperPath) == "xattr -d com.apple.quarantine '/Applications/LP.app/Contents/Helpers/lp-mcp'", "step 1 clears the download flag")
+let connectStep = ClaudeSetup.connect(helper: helperPath, workspace: "/Users/me/My Notes; echo hi")
+check(connectStep == "claude mcp add --scope user lp -- '/Applications/LP.app/Contents/Helpers/lp-mcp' --workspace '/Users/me/My Notes; echo hi'",
+      "step 2 connects this workspace as one quoted word: \(connectStep)")
+check(ClaudeSetup.check == "claude mcp get lp" && ClaudeSetup.remove == "claude mcp remove lp --scope user", "steps 3 and replacing")
 
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

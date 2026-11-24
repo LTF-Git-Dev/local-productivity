@@ -164,16 +164,6 @@ final class ReminderCenter {
         Task { try? await UNUserNotificationCenter.current().add(request) }
     }
 
-    /// Sends a notification right away, so the person can see what reminders look like.
-    func sendTest() {
-        guard !isDryRun else { return }
-        let request = Self.request(id: "lp.test", kind: .summary, title: "Reminders are on",
-                                   subtitle: "This is how LP will remind you",
-                                   body: "Tasks and cards on the day they are due, events before they start, and a summary each morning.",
-                                   info: [:], date: Date().addingTimeInterval(1))
-        Task { try? await UNUserNotificationCenter.current().add(request) }
-    }
-
     private static func request(id: String, kind: PlannedReminder.Kind, title: String, subtitle: String, body: String,
                                 info: [String: String], date: Date) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()

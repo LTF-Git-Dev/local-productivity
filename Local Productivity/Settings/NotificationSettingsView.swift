@@ -104,12 +104,9 @@ private struct PermissionRow: View {
         switch reminders.permission {
         case .allowed:
             LabeledContent("Notifications") {
-                HStack(spacing: 10) {
-                    Label("On", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(Color.lpGood)
-                        .labelStyle(.titleAndIcon)
-                    Button("Send a Test") { reminders.sendTest() }
-                }
+                Label("On", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(Color.lpGood)
+                    .labelStyle(.titleAndIcon)
             }
         case .denied:
             VStack(alignment: .leading, spacing: 6) {

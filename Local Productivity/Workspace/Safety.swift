@@ -162,29 +162,29 @@ nonisolated enum PageNaming {
     }
 }
 
-/// The Terminal command that connects Claude Code to a workspace through the `lp-mcp` helper
-/// inside LP.app (Settings → General → LP with Claude). Paths are quoted for the shell, so a
-/// folder name can never run as a command.
+/// The Terminal steps that connect Claude Code to a workspace through the `lp-mcp` helper inside
+/// LP.app (Settings → General → LP with Claude): one short command per step. Paths are quoted for
+/// the shell, so a folder name can never run as a command.
 nonisolated enum ClaudeSetup {
     /// `text` in single quotes for zsh/bash; a single quote inside becomes '\''.
     static func shellQuoted(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// Connects this workspace — unless LP is already connected in any scope (it shows that connection
-    /// and how to replace it, rather than replacing it), only while the helper is still there, and
-    /// only once the download flag macOS puts on it is gone (it would block the helper). Messages
-    /// contain no apostrophes, as they sit in single quotes.
-    static func command(helper: String, workspace: String) -> String {
-        let tool = shellQuoted(helper)
-        return "if claude mcp get lp >/dev/null 2>&1; then "
-            + "echo 'LP is already connected to Claude Code, as shown below. To connect this workspace instead, remove it with: claude mcp remove lp --scope SCOPE (the scope shown) - then paste this command again.'; claude mcp get lp; "
-            + "elif [ ! -x \(tool) ]; then "
-            + "echo 'The LP helper is not where it was. Open LP from your Applications folder and copy the command again.'; "
-            + "elif ! lpflags=$(xattr \(tool)); then "
-            + "echo 'The LP helper could not be checked. Open LP from your Applications folder and copy the command again.'; "
-            + "elif printf '%s\\n' \"$lpflags\" | grep -qx com.apple.quarantine && ! xattr -d com.apple.quarantine \(tool); then "
-            + "echo 'macOS still blocks the LP helper. Move LP to your Applications folder, open it from there and copy the command again.'; "
-            + "else claude mcp add --scope user lp -- \(tool) --workspace \(shellQuoted(workspace)); fi"
+    /// Step 1: lets the helper run — macOS blocks programs that arrived in a download until this flag is gone.
+    static func allowHelper(_ helper: String) -> String {
+        "xattr -d com.apple.quarantine \(shellQuoted(helper))"
     }
+
+    /// Step 2: connects Claude Code (every project) to this workspace.
+    static func connect(helper: String, workspace: String) -> String {
+        "claude mcp add --scope user lp -- \(shellQuoted(helper)) --workspace \(shellQuoted(workspace))"
+    }
+
+    /// Step 3: shows whether it's connected.
+    static let check = "claude mcp get lp"
+
+    /// When LP is already connected and should be connected to another workspace instead.
+    static let remove = "claude mcp remove lp --scope user"
+
 }
