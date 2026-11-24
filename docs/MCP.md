@@ -43,11 +43,11 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
   permissions stay — or the edit isn't made — and so does the creation date where the disk keeps one.
   New pages are written in full under a hidden name first, so a failed write never leaves half a page.
 - Changes to what's already there need the **revision** they were based on — rewriting a page
-  (`lp_update_page`), changing a card (`lp_update_card`) and ticking a task off
-  (`lp_set_task_done`) — so Claude can't act on something that changed after it read it. Every
-  change returns the new revision for the next step.
-- Results say when a scan was `incomplete` (an unreadable folder, or more than 20,000 pages); a
-  daily note is then never created twice.
+  (`lp_update_page`), adding or changing a card (`lp_add_card`, `lp_update_card`) and ticking a
+  task off (`lp_set_task_done`) — so Claude can't act on something that changed after it read it.
+  Every change returns the new revision for the next step.
+- Results say when they're `incomplete` (a folder or page that couldn't be read, or more than
+  20,000 pages); a daily note is then never created twice.
 - In Claude, every tool except the six reading ones asks for your approval unless you allow it;
   the three that can replace text (`lp_update_page`, `lp_replace_text`, `lp_update_card`) are
   marked destructive.

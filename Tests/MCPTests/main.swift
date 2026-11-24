@@ -117,7 +117,7 @@ check(tool("lp_read_page", [:]).error, "a missing argument is an error")
 check(tool("lp_read_page", ["path": 5]).text.contains("required"), "a number for a path is refused")
 check(tool("lp_set_task_done", ["path": "x.md", "revision": pageRev("x.md"), "task": "a", "done": 1]).text.contains("true or false"), "1 isn't a boolean")
 check(tool("lp_search", ["query": "a", "limit": 2.5]).text.contains("whole number"), "2.5 isn't a limit")
-check(tool("lp_add_card", ["board": "b.md", "list": "x", "title": "t", "tags": "one"]).text.contains("list of text"), "tags must be a list")
+check(tool("lp_add_card", ["board": "b.md", "revision": rev("b.md"), "list": "x", "title": "t", "tags": "one"]).text.contains("list of text"), "tags must be a list")
 
 // MARK: - The workspace
 
@@ -327,7 +327,7 @@ let boardText = read("Projects/Launch.md")!
 check(boardText.contains("kanban-plugin: basic") && boardText.contains("lp-board: b") && boardText.contains("%% kanban:settings"),
       "an Obsidian Kanban board with an LP board ID")
 
-let card = tool("lp_add_card", ["board": "Projects/Launch.md", "list": "backlog", "title": "Press release", "due": "2026-11-29",
+let card = tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "backlog", "title": "Press release", "due": "2026-11-29",
                                 "time": "09:00", "tags": ["launch", "copy"], "notes": "Two paragraphs.\nOne quote."])
 let cardID = card.json["added"] as? String ?? ""
 check(!card.error && cardID.hasPrefix("c"), "a card is added: \(card.text)")
@@ -338,12 +338,12 @@ check(added["id"] as? String == cardID && added["title"] as? String == "Press re
 check(added["due"] as? String == "2026-11-29" && added["time"] as? String == "09:00", "with its due date and time")
 check(added["tags"] as? [String] == ["launch", "copy"] && added["notes"] as? String == "Two paragraphs.\nOne quote.", "tags and notes")
 check(added["done"] as? Bool == false, "open in Backlog")
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Someday", "title": "x"]).text.contains("Its lists"), "an unknown list names the lists")
-check(tool("lp_add_card", ["board": "Welcome.md", "list": "x", "title": "x"]).text.contains("not a board"), "cards only go on boards")
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Done", "title": "Old win"]).error == false, "a card added to Done")
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Someday", "title": "x"]).text.contains("Its lists"), "an unknown list names the lists")
+check(tool("lp_add_card", ["board": "Welcome.md", "revision": rev("Welcome.md"), "list": "x", "title": "x"]).text.contains("not a board"), "cards only go on boards")
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Done", "title": "Old win"]).error == false, "a card added to Done")
 check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?.last?["cards"] as? [[String: Any]])?.first?["done"]
       as? Bool == true, "is done")
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "time": "25:00"]).error, "an impossible time is refused")
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "x", "time": "25:00"]).error, "an impossible time is refused")
 
 check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "title": "Press release v2", "due": "", "tags": ["pr"]]).error == false,
       "a card is edited")
@@ -362,7 +362,7 @@ check((tool("lp_list_boards").json["boards"] as? [[String: Any]])?.first { $0["p
       "progress is listed per board")
 let reopened = tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "done": false])
 check(reopened.json["result"] as? String == "Updated. Moved to “Backlog”.", "reopening a done card moves it to the first open list: \(reopened.text)")
-tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Review", "title": "Proofread"])
+tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Review", "title": "Proofread"])
 tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": cardID, "move_to_list": "Review", "before_card": "Proofread"])
 let review = ((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[3]["cards"] as? [[String: Any]] ?? [])
 check(review.map { $0["title"] as? String ?? "" } == ["Press release v2", "Proofread"], "placed before a card: \(review)")
@@ -431,10 +431,10 @@ check(tool("lp_create_page", ["title": "Big", "content": big + "b"]).text.contai
 check(read("Note.md") == "plain\n" && !exists("Big.md"), "and nothing was written")
 
 // Card text can't change a board's structure.
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "tags": ["ok\n## Hacked\n- [ ] Evil"]]).text.contains("isn’t a tag"),
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "x", "tags": ["ok\n## Hacked\n- [ ] Evil"]]).text.contains("isn’t a tag"),
       "a tag with a line break is refused")
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "tags": ["two words"]]).error, "and one with a space")
-let tidy = tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "Line one\n## Fake list\r- [ ] Fake card", "tags": ["#ok", "a/b-c_d"]])
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "x", "tags": ["two words"]]).error, "and one with a space")
+let tidy = tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "Line one\n## Fake list\r- [ ] Fake card", "tags": ["#ok", "a/b-c_d"]])
 let tidyID = tidy.json["added"] as? String ?? "?"
 check(!tidy.error, "a title with line breaks is added on one line: \(tidy.text)")
 let lanes = (tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]] ?? [])
@@ -447,7 +447,7 @@ check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? 
       .first { $0["id"] as? String == tidyID }?["notes"] as? String == "one\ntwo", "are kept as two lines")
 
 // Impossible card changes are explained, not reported as done.
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "time": "10:00"]).text.contains("due date"),
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "x", "time": "10:00"]).text.contains("due date"),
       "a time without a date is refused")
 check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "time": "10:00"]).text.contains("due date"), "on an undated card too")
 check(tool("lp_update_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "card": tidyID, "move_to_list": "Done", "done": false]).text.contains("can’t be open"),
@@ -495,7 +495,7 @@ check(read("Tagged.md") == "x\n\ny\n", "with the new text")
 
 // Card edits name the board version they're based on; each change hands back the next one.
 let board1 = rev("Projects/Launch.md")
-let addedCard = tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "Chained"])
+let addedCard = tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "Chained"])
 let chained = tool("lp_update_card", ["board": "Projects/Launch.md", "revision": addedCard.json["revision"] as? String ?? "",
                                       "card": addedCard.json["added"] as? String ?? "", "move_to_list": "Review"])
 check(!chained.error, "the revision an add returns is enough for the next change: \(chained.text)")
@@ -532,7 +532,7 @@ check((tool("lp_list_pages", ["folder": " Spaced"]).json["pages"] as? [Any])?.co
 // Null arguments and number-only tags.
 let nullArguments = send("tools/call", ["name": "lp_daily_note", "arguments": NSNull()])
 check(((nullArguments?["error"] as? [String: Any])?["code"] as? Int) == -32602, "null arguments are refused")
-check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "tags": ["123"]]).text.contains("not only digits"),
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": rev("Projects/Launch.md"), "list": "Next", "title": "x", "tags": ["123"]]).text.contains("not only digits"),
       "a number-only tag is refused (LP wouldn't read it as a tag)")
 
 // A folder that can't be read makes a scan incomplete — and then no daily note is made twice.
@@ -679,6 +679,17 @@ unguard.executableURL = URL(fileURLWithPath: "/bin/chmod")
 unguard.arguments = ["-a", "everyone deny readextattr", root.appendingPathComponent("Guarded Folder").path]
 try! unguard.run(); unguard.waitUntilExit()
 check(tool("lp_daily_note", ["date": "2026-12-31"]).json["path"] as? String == "Guarded Folder/2026-12-31.md", "once readable, it's found")
+
+// MARK: Review fixes (Codex round 9)
+
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x"]).text.contains("“revision” is required"),
+      "adding a card needs the board's revision")
+let oldBoard = rev("Projects/Launch.md")
+tool("lp_add_card", ["board": "Projects/Launch.md", "revision": oldBoard, "list": "Next", "title": "First"])
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": oldBoard, "list": "Next", "title": "Second"]).text.contains("changed since"),
+      "an old revision is refused, so a replaced board can't get the card")
+check(tool("lp_search", ["query": "the"]).json["incomplete"] as? Bool == true, "search says it's incomplete when a page couldn't be read (Latin.md)")
+check(tool("lp_list_tasks").json["incomplete"] as? Bool == true, "and so do tasks")
 
 // MARK: Nothing is ever deleted
 

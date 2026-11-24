@@ -282,7 +282,8 @@ nonisolated final class MCPServer {
             let added = try vault.addCard(to: try a.string("board"), list: try a.string("list"), title: try a.string("title"),
                                        due: try a.optionalString("due").map { try day($0) },
                                        time: try a.optionalString("time").map { try Self.time($0) },
-                                       tags: try a.optionalStrings("tags") ?? [], notes: try a.optionalString("notes") ?? "")
+                                       tags: try a.optionalStrings("tags") ?? [], notes: try a.optionalString("notes") ?? "",
+                                       revision: try a.string("revision"))
             return Self.json(["added": added.id, "revision": added.revision])
 
         case "lp_update_card":
@@ -411,10 +412,11 @@ nonisolated final class MCPServer {
         Tool(name: "lp_add_card", title: "Add a card",
              description: "Adds a card at the end of a board's list. Returns the new card's id.",
              properties: ["board": text("The board's path."), "list": text("The list's title (case ignored)."), "title": text("The card's title."),
+                          "revision": text("The board's revision from lp_read_board or lp_create_board, or from the last card change. Refused if the board changed since: read it again."),
                           "due": text("Due date (YYYY-MM-DD, today, tomorrow)."), "time": text("Due time, 24-hour HH:MM (with a due date)."),
                           "tags": ["type": "array", "items": ["type": "string"], "description": "Tags, without #."],
                           "notes": text("Notes shown inside the card (Markdown).")],
-             required: ["board", "list", "title"], readOnly: false, idempotent: false),
+             required: ["board", "list", "title", "revision"], readOnly: false, idempotent: false),
         Tool(name: "lp_update_card", title: "Update or move a card",
              description: "Changes a card — title, due date or time (empty text clears it), tags, notes, done — and/or moves it to another list (moving into a list that counts as done marks it done; out of one, open). Only what's given changes.",
              properties: ["board": text("The board's path."), "card": text("The card's id (from lp_read_board) or its exact title."),

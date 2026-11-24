@@ -156,7 +156,8 @@ nonisolated final class LPVault {
         guard !terms.isEmpty else { throw VaultError("Give a word or two to search for.") }
         var scored: [(score: Int, hit: Hit)] = []
         for info in try pages() {
-            guard let text = try? readText(info.path).text else { continue }
+            // A page that can't be read is left out, and the results say they're incomplete.
+            guard let text = try? readText(info.path).text else { lastScanIncomplete = true; continue }
             let title = Self.fold(info.title), body = Self.fold(text)
             var score = 0
             var firstBodyTerm: String?
@@ -214,7 +215,7 @@ nonisolated final class LPVault {
     func tasks(_ filter: TaskFilter = .open, dueBy: Day? = nil, in folderPath: String = "") throws -> [TaskInfo] {
         var found: [TaskInfo] = []
         for info in try pages(in: folderPath) {
-            guard let (text, data) = try? readText(info.path) else { continue }
+            guard let (text, data) = try? readText(info.path) else { lastScanIncomplete = true; continue }
             let revision = Self.revision(of: data)
             if BoardParser.isBoard(text) {
                 let board = BoardParser.parse(text)
@@ -261,7 +262,7 @@ nonisolated final class LPVault {
 
     func boards(in folderPath: String = "") throws -> [BoardInfo] {
         try pages(in: folderPath).filter(\.isBoard).compactMap { info in
-            guard let text = try? readText(info.path).text else { return nil }
+            guard let text = try? readText(info.path).text else { lastScanIncomplete = true; return nil }
             return BoardInfo(path: info.path, title: info.title, summary: BoardSummary(board: BoardParser.parse(text)))
         }
     }
@@ -477,7 +478,7 @@ nonisolated final class LPVault {
     }
 
     func addCard(to raw: String, list: String, title: String, due: Day? = nil, time: TimeOfDay? = nil,
-                 tags: [String] = [], notes: String = "") throws -> (id: String, revision: String) {
+                 tags: [String] = [], notes: String = "", revision: String? = nil) throws -> (id: String, revision: String) {
         let cleanTitle = Self.oneLine(title)
         guard !cleanTitle.isEmpty else { throw VaultError("Give the card a title.") }
         let cleanTags = try Self.cleanTags(tags)
@@ -487,6 +488,7 @@ nonisolated final class LPVault {
         let id = BoardIDs.newCardID()
         let updated = try modify(path) { text in
             guard BoardParser.isBoard(text) else { throw VaultError("“\(path)” is a page, not a board.") }
+            if let revision, Self.revision(of: text) != revision { throw Self.stale(path) }
             var board = BoardParser.parse(text)
             let laneIndex = try Self.lane(list, in: board)
             var card = BoardCard(id: id, text: cleanTitle, body: "", isDone: board.lanes[laneIndex].marksComplete)
