@@ -64,6 +64,22 @@ func rev(_ board: String) -> String { tool("lp_read_board", ["path": board]).jso
 /// A page's current revision, as Claude gets it from lp_read_page.
 func pageRev(_ page: String) -> String { tool("lp_read_page", ["path": page]).json["revision"] as? String ?? "?" }
 
+/// The person's answer to LP's "which workspace?" form, as the Claude app sends it back.
+var nextAnswer: [String: Any]?
+var lastAsked: [String: Any]?
+server.sendRequest = { request in
+    lastAsked = request
+    defer { nextAnswer = nil }
+    return nextAnswer
+}
+@discardableResult
+func choose(_ workspace: String, folder: String? = nil, action: String = "accept") -> (error: Bool, text: String, json: [String: Any]) {
+    var content: [String: Any] = ["workspace": workspace]
+    if let folder { content["folder"] = folder }
+    nextAnswer = ["jsonrpc": "2.0", "id": "lp-ask-1", "result": ["action": action, "content": content]]
+    return tool("lp_use_workspace")
+}
+
 func allFiles() -> Set<String> {
     var found: Set<String> = []
     if let walker = fm.enumerator(at: root, includingPropertiesForKeys: nil) {
@@ -76,13 +92,14 @@ func allFiles() -> Set<String> {
 
 // MARK: - Protocol
 
-let initialize = send("initialize", ["protocolVersion": "2025-06-18", "capabilities": [:], "clientInfo": ["name": "test", "version": "1"]])
+let initialize = send("initialize", ["protocolVersion": "2025-06-18", "capabilities": ["elicitation": ["form": [:]]],
+                                     "clientInfo": ["name": "test", "version": "1"]])
 let initResult = initialize?["result"] as? [String: Any]
 check(initResult?["protocolVersion"] as? String == "2025-06-18", "a supported protocol version is accepted as asked")
 check((initResult?["capabilities"] as? [String: Any])?["tools"] != nil, "the server offers tools")
 check((initResult?["serverInfo"] as? [String: Any])?["name"] as? String == "lp", "the server is called lp")
 check(initialize?["id"] as? Int == 101, "the reply carries the request's id")
-let future = send("initialize", ["protocolVersion": "2099-01-01"])?["result"] as? [String: Any]
+let future = send("initialize", ["protocolVersion": "2099-01-01", "capabilities": ["elicitation": [:]]])?["result"] as? [String: Any]
 check(future?["protocolVersion"] as? String == MCPServer.protocolVersions[0], "an unknown version gets the newest one")
 check(server.handle(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#) == nil, "notifications get no reply")
 check(server.handle("") == nil, "an empty line is ignored")
@@ -117,20 +134,37 @@ check(readOnly == ["lp_list_workspaces", "lp_list_pages", "lp_search", "lp_read_
 
 // MARK: Choosing a workspace first
 
-check(tool("lp_list_pages").text.contains("Ask the person"), "nothing works before a workspace is chosen")
-check(tool("lp_daily_note").text.contains("Ask the person"), "nothing is written either")
+check(tool("lp_list_pages").text.contains("asks the person directly"), "nothing works before a workspace is chosen")
+check(tool("lp_daily_note").text.contains("asks the person directly"), "nothing is written either")
 check(!exists("2026-11-24.md"), "and no note was made")
-let allowed = tool("lp_list_workspaces").json
-let allowedNames = (allowed["workspaces"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
-check(allowedNames == [root.lastPathComponent, second.lastPathComponent], "both allowed workspaces are listed: \(allowedNames)")
-check(allowed["chosen"] is NSNull, "none chosen yet")
-check(((allowed["workspaces"] as? [[String: Any]])?.last?["folders"] as? [String]) == ["Journal"], "with their top folders")
-check(tool("lp_use_workspace", ["workspace": "Elsewhere"]).text.contains("isn’t an allowed workspace"), "only allowed workspaces can be chosen")
-check(tool("lp_use_workspace", ["workspace": second.lastPathComponent, "folder": "Missing"]).error, "a missing folder can't be chosen")
-check(tool("lp_use_workspace", ["workspace": second.lastPathComponent, "folder": "../"]).error, "nor one above the workspace")
-let chosen = tool("lp_use_workspace", ["workspace": root.lastPathComponent])
+let beforeChoice = tool("lp_list_workspaces").json
+check(beforeChoice["allowed"] as? Int == 2 && beforeChoice["chosen"] is NSNull, "before a choice: only how many workspaces are allowed")
+check(!tool("lp_list_workspaces").text.contains(root.lastPathComponent), "not even their names")
+let declined = choose(root.lastPathComponent, action: "decline")
+check(declined.error && declined.text.contains("didn’t choose"), "declining the form chooses nothing")
+let offered = ((((lastAsked?["params"] as? [String: Any])?["requestedSchema"] as? [String: Any])?["properties"] as? [String: Any])?["workspace"] as? [String: Any])?["enum"] as? [String]
+check(lastAsked?["method"] as? String == "elicitation/create", "the person is asked with a form")
+check(offered == [root.lastPathComponent, second.lastPathComponent], "offering exactly the allowed workspaces: \(offered ?? [])")
+check(tool("lp_list_pages").text.contains("lp_use_workspace"), "still nothing works")
+nextAnswer = nil
+check(tool("lp_use_workspace").text.contains("wasn’t asked"), "no answer chooses nothing")
+check(choose(root.lastPathComponent.uppercased()).text.contains("isn’t an allowed"), "the name must match exactly")
+check(choose("Elsewhere").text.contains("isn’t an allowed workspace"), "only allowed workspaces can be chosen")
+check(choose(second.lastPathComponent, folder: "Missing").error, "a missing folder can't be chosen")
+check(choose(second.lastPathComponent, folder: "../").error, "nor one above the workspace")
+let chosen = choose(root.lastPathComponent)
 check(!chosen.error, "the person's choice is used: \(chosen.text)")
 check(((tool("lp_list_workspaces").json["chosen"] as? [String: Any])?["workspace"] as? String) == root.lastPathComponent, "and reported as chosen")
+
+// Apps that can't show a form: refused — unless LP was started to accept the choice from the chat.
+let noForms = try! MCPServer(workspaces: [root])
+_ = noForms.handle(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+let noFormsReply = noForms.handle(#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"lp_use_workspace","arguments":{"workspace":"x"}}}"#) ?? ""
+check(noFormsReply.contains("can’t show the person a form") && noFormsReply.contains("\"isError\":true"), "an app without forms can't choose")
+let inChat = try! MCPServer(workspaces: [root], allowChoiceInChat: true)
+_ = inChat.handle(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}"#)
+let inChatReply = inChat.handle(#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"lp_use_workspace","arguments":{"workspace":"\#(root.lastPathComponent)"}}}"#) ?? ""
+check(inChatReply.contains("\"isError\":false"), "with --allow-choice-in-chat, Claude passes the choice on: \(inChatReply.prefix(160))")
 
 // Wrong argument types are explained, not crashes.
 check(tool("lp_read_page", [:]).error, "a missing argument is an error")
@@ -713,17 +747,17 @@ check(tool("lp_list_tasks").json["incomplete"] as? Bool == true, "and so do task
 
 // MARK: A folder chosen inside a workspace
 
-check(!tool("lp_use_workspace", ["workspace": root.lastPathComponent, "folder": "Projects"]).error, "a folder is chosen")
+check(!choose(root.lastPathComponent, folder: "Projects").error, "a folder is chosen")
 let scoped = (tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }
 check(!scoped.isEmpty && scoped.allSatisfy { !$0.hasPrefix("Projects/") } && scoped.contains("Website Redesign.md"),
       "only its pages are listed, relative to it: \(scoped.prefix(4))")
 check(tool("lp_read_page", ["path": "../Welcome.md"]).error, "nothing outside it can be read")
 check(tool("lp_create_page", ["title": "Scoped"]).json["created"] as? String == "Scoped.md", "new pages go inside it")
 check(exists("Projects/Scoped.md") && !exists("Scoped.md"), "really inside it")
-check(tool("lp_use_workspace", ["workspace": root.lastPathComponent, "folder": ".lp"]).error, "a hidden folder can't be chosen")
-check(!tool("lp_use_workspace", ["workspace": second.lastPathComponent]).error, "another workspace can be chosen")
+check(choose(root.lastPathComponent, folder: ".lp").error, "a hidden folder can't be chosen")
+check(!choose(second.lastPathComponent).error, "another workspace can be chosen")
 check((tool("lp_list_pages").json["pages"] as? [Any])?.isEmpty == true, "and only its pages are seen")
-check(!tool("lp_use_workspace", ["workspace": root.lastPathComponent]).error, "and back to the first")
+check(!choose(root.lastPathComponent).error, "and back to the first")
 
 // MARK: Nothing is ever deleted
 

@@ -23,6 +23,9 @@ nonisolated final class AnchoredFiles {
         guard rootFD >= 0 else { throw VaultError("The workspace folder \(root.path) can’t be opened.") }
     }
 
+    /// Files under a folder already opened (and checked) — this takes over the handle.
+    init(adopting folderFD: Int32) { rootFD = folderFD }
+
     deinit { close(rootFD) }
 
     /// Splits "a/b/c.md" into "a/b" and "c.md".

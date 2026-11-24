@@ -201,8 +201,8 @@ need setting up" until LP is signed with a team — a free Apple ID works:
 ### Using LP with Claude (MCP)
 
 `lp-mcp` lets Claude — Claude Code and the Claude desktop app — read and change your LP workspace:
-search pages, list tasks and boards, add to today's note, tick tasks off, add and move cards. Claude
-asks you which workspace (and folder) to work on before it reads or changes anything. It
+search pages, list tasks and boards, add to today's note, tick tasks off, add and move cards. Before
+Claude can read or change anything, LP asks you — in a form — which workspace (and folder) it may use. It
 works on your workspace folder directly with LP's own code, on your Mac only; nothing is ever
 deleted. How to build and connect it, what it can do and its safety rules: [docs/MCP.md](docs/MCP.md).
 

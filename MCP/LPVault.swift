@@ -43,6 +43,13 @@ nonisolated final class LPVault {
         files = try AnchoredFiles(root: resolved)
     }
 
+    /// A vault on a folder already opened and checked (a folder chosen inside a workspace); `root`
+    /// is only for showing where it is — every file is reached through `files`.
+    init(files: AnchoredFiles, root: URL) {
+        self.files = files
+        self.root = root
+    }
+
     // MARK: - Paths
 
     /// A page's path inside the workspace, used exactly as given (" Note.md" isn't "Note.md"):

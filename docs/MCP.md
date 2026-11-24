@@ -8,16 +8,20 @@ to be open; when it is, it shows Claude's changes as they happen.
 It runs on your Mac only. Nothing goes to LP's makers; what Claude reads goes to Claude, as with
 anything you share in a conversation.
 
-## Claude asks first
+## You choose, every time
 
-You give `lp-mcp` the workspaces Claude may ever use (one or more `--workspace` folders). In each
-conversation, **before reading or changing anything, Claude asks you which workspace — and, if you
-like, which folder inside it — to work on**, then chooses exactly that with `lp_use_workspace`
-(Claude Code shows you that call to approve). Until then every other tool refuses. With a folder
-chosen, nothing outside it can be read or changed; ask Claude to switch and it asks again.
+You give `lp-mcp` the workspaces Claude may ever use (one or more `--workspace` folders) — it can
+reach nothing else. In each conversation, **before Claude can read or change anything, LP itself
+asks you** — a small form in Claude Code — which of those workspaces it may use, and optionally one
+folder inside it (leave the folder empty to allow the whole workspace). Only your answer counts:
+Claude can't fill in the form, and if you decline or close it, nothing is chosen and every tool
+keeps refusing. With a folder chosen, nothing outside it can be read or changed. Claude sees nothing
+about your workspaces — not even their names — until you've chosen. To switch, Claude asks again
+and you get the form again.
 
-Tip: when Claude Code asks to approve `lp_use_workspace`, choose **Yes** (once), not "always", so you
-see every choice.
+Claude apps that can't show such forms are refused. Only if you start `lp-mcp` with
+`--allow-choice-in-chat` will it instead accept the workspace Claude passes on from your chat —
+weaker, because then Claude, not LP, reports your choice.
 
 ## What Claude can do
 

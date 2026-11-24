@@ -22,9 +22,13 @@ if arguments.contains("--help") || arguments.contains("-h") {
 }
 // One or more workspaces Claude may be given (it asks the person which one to use each session).
 var roots: [String] = []
+var allowChoiceInChat = false
 var index = 0
 while index < arguments.count {
-    if arguments[index] == "--workspace" {
+    if arguments[index] == "--allow-choice-in-chat" {
+        allowChoiceInChat = true
+        index += 1
+    } else if arguments[index] == "--workspace" {
         guard arguments.indices.contains(index + 1) else { fail("--workspace needs a folder.") }
         roots.append(arguments[index + 1])
         index += 2
@@ -39,16 +43,38 @@ guard !roots.isEmpty else { fail("say which LP workspaces Claude may use: lp-mcp
 
 let server: MCPServer
 do {
-    server = try MCPServer(workspaces: roots.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) })
+    server = try MCPServer(workspaces: roots.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
+                           allowChoiceInChat: allowChoiceInChat)
 } catch {
     fail("\(error)")
 }
 FileHandle.standardError.write(Data("lp-mcp \(MCPServer.version): may use \(server.workspaces.map(\.name).joined(separator: ", "))\n".utf8))
-// stdout carries only protocol messages, one per line.
-while let line = readLine(strippingNewline: true) {
-    autoreleasepool {
-        if let reply = server.handle(line) {
-            FileHandle.standardOutput.write(Data((reply + "\n").utf8))
+func send(_ line: String) { FileHandle.standardOutput.write(Data((line + "\n").utf8)) }
+
+// Requests this server sends the Claude app (asking the person to choose a workspace): the answer
+// is read here; anything else that arrives meanwhile is handled after it, in order.
+var pending: [String] = []
+var asked = 0
+server.sendRequest = { request in
+    asked += 1
+    let id = "lp-ask-\(asked)"
+    var message = request
+    message["jsonrpc"] = "2.0"
+    message["id"] = id
+    send(MCPServer.line(message))
+    while let line = readLine(strippingNewline: true) {
+        if let reply = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
+           reply["method"] == nil, reply["id"] as? String == id {
+            return reply
         }
+        pending.append(line)
+    }
+    return nil
+}
+
+// stdout carries only protocol messages, one per line.
+while let line = pending.isEmpty ? readLine(strippingNewline: true) : pending.removeFirst() {
+    autoreleasepool {
+        if let reply = server.handle(line) { send(reply) }
     }
 }

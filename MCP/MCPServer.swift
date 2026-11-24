@@ -29,8 +29,17 @@ nonisolated final class MCPServer {
     private(set) var scope: (workspace: String, folder: String)?
     /// What "today" means for daily notes and due dates; replaceable in tests.
     var today: () -> Day = { .today }
+    /// Whether the Claude app can show the person a form (MCP elicitation) — then the person, not
+    /// Claude, chooses the workspace. Set from the app's `initialize`.
+    private(set) var clientCanAsk = false
+    /// For apps without forms: let Claude pass on the person's choice from the chat (weaker — only
+    /// with `--allow-choice-in-chat`).
+    let allowChoiceInChat: Bool
+    /// Sends a request to the Claude app and returns its answer (set by main; replaced in tests).
+    var sendRequest: ((_ request: [String: Any]) -> [String: Any]?)?
 
-    init(workspaces roots: [URL]) throws {
+    init(workspaces roots: [URL], allowChoiceInChat: Bool = false) throws {
+        self.allowChoiceInChat = allowChoiceInChat
         guard !roots.isEmpty else { throw VaultError("No workspace was given: lp-mcp --workspace <folder> [--workspace <folder> …]") }
         var allowed: [AllowedWorkspace] = []
         for root in roots {
@@ -44,9 +53,8 @@ nonisolated final class MCPServer {
     }
 
     static let chooseFirst = """
-    No workspace has been chosen for this session. Ask the person which LP workspace — and, if they \
-    like, which folder inside it — you may use (lp_list_workspaces shows the ones allowed), then call \
-    lp_use_workspace with exactly what they said. Never choose one yourself.
+    No workspace has been chosen for this session. Call lp_use_workspace: LP asks the person directly \
+    which workspace — and which folder in it, if any — you may use. Don't guess or choose one yourself.
     """
 
     // MARK: - Messages
@@ -76,6 +84,8 @@ nonisolated final class MCPServer {
         case "initialize":
             let asked = params["protocolVersion"] as? String
             let version = asked.flatMap { Self.protocolVersions.contains($0) ? $0 : nil } ?? Self.protocolVersions[0]
+            let capabilities = params["capabilities"] as? [String: Any] ?? [:]
+            clientCanAsk = (capabilities["elicitation"] as? [String: Any]).map { $0.isEmpty || $0["form"] != nil } ?? false
             return Self.encode(result: [
                 "protocolVersion": version,
                 "capabilities": ["tools": ["listChanged": false]],
@@ -129,6 +139,37 @@ nonisolated final class MCPServer {
     static func json(_ object: Any) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])) ?? Data()
         return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Shows the person a form in the Claude app: which allowed workspace, and optionally which
+    /// folder. Only their own answer counts; declining or closing it chooses nothing.
+    func askPerson(suggested: (String?, String?), _ sendRequest: ([String: Any]) -> [String: Any]?) throws -> (workspace: String, folder: String) {
+        var message = "Claude wants to work with your LP notes. Which workspace may it read and change in this conversation?"
+        if let workspace = suggested.0 {
+            message += " (Claude suggested “\(workspace)”\(suggested.1.map { ", folder “\($0)”" } ?? "").)"
+        }
+        let request: [String: Any] = ["method": "elicitation/create", "params": [
+            "message": message,
+            "requestedSchema": [
+                "type": "object",
+                "properties": [
+                    "workspace": ["type": "string", "title": "Workspace", "enum": workspaces.map(\.name),
+                                  "description": "The LP workspace Claude may use in this conversation."],
+                    "folder": ["type": "string", "title": "Folder (optional)",
+                               "description": "Limit Claude to one folder inside it, like Projects. Leave empty to allow the whole workspace."],
+                ],
+                "required": ["workspace"],
+            ],
+        ]]
+        guard let reply = sendRequest(request) else { throw VaultError("The person wasn’t asked (no answer came back), so no workspace was chosen.") }
+        guard let result = reply["result"] as? [String: Any] else {
+            throw VaultError("The Claude app couldn’t show the choice (\(((reply["error"] as? [String: Any])?["message"] as? String) ?? "no reason given")), so no workspace was chosen.")
+        }
+        guard result["action"] as? String == "accept", let content = result["content"] as? [String: Any],
+              let workspace = content["workspace"] as? String else {
+            throw VaultError("The person didn’t choose a workspace (\(result["action"] as? String ?? "no answer")), so nothing in LP was used. Ask them if they’d like to choose one.")
+        }
+        return (workspace, (content["folder"] as? String) ?? "")
     }
 
     // MARK: - Arguments
@@ -206,29 +247,45 @@ nonisolated final class MCPServer {
     func call(_ name: String, _ a: Arguments) throws -> String {
         switch name {
         case "lp_list_workspaces":
-            return Self.json([
-                "chosen": scope.map { chosen -> Any in
-                    ["workspace": chosen.workspace, "folder": chosen.folder.isEmpty ? NSNull() : chosen.folder as Any]
-                } ?? NSNull(),
-                "workspaces": workspaces.map { workspace -> [String: Any] in
-                    ["name": workspace.name, "path": workspace.vault.root.path,
-                     "folders": (try? workspace.vault.files.subfolders("")) ?? []]
-                },
-                "note": "Ask the person which workspace (and optionally which folder) to use before calling lp_use_workspace.",
-            ])
+            // Before the person has chosen, nothing about the workspaces is shown — not even names.
+            guard let scope, let vault else {
+                return Self.json(["chosen": NSNull(), "allowed": workspaces.count,
+                                  "note": "Call lp_use_workspace: LP asks the person directly which workspace and folder you may use."])
+            }
+            return Self.json(["chosen": ["workspace": scope.workspace, "folder": scope.folder.isEmpty ? NSNull() : scope.folder as Any],
+                              "folders": (try? vault.files.subfolders("")) ?? []])
 
         case "lp_use_workspace":
-            let wanted = try a.string("workspace")
-            guard let workspace = workspaces.first(where: { $0.name.lowercased() == wanted.trimmingCharacters(in: .whitespaces).lowercased() }) else {
-                throw VaultError("“\(wanted)” isn’t an allowed workspace. Allowed: \(workspaces.map { "“\($0.name)”" }.joined(separator: ", ")).")
+            let suggested = (try a.optionalString("workspace"), try a.optionalString("folder"))
+            let choice: (workspace: String, folder: String)
+            if clientCanAsk, let sendRequest {
+                choice = try askPerson(suggested: suggested, sendRequest)
+            } else if allowChoiceInChat {
+                guard let workspace = suggested.0 else {
+                    throw VaultError("Ask the person which workspace (and folder) to use, then pass their answer as workspace and folder.")
+                }
+                choice = (workspace, suggested.1 ?? "")
+            } else {
+                throw VaultError("This Claude app can’t show the person a form to choose a workspace, so LP can’t be used here. (Started with --allow-choice-in-chat, Claude may pass on the person's choice from the chat instead.)")
             }
-            let folder = try workspace.vault.folder(try a.optionalString("folder") ?? "")
-            close(try workspace.vault.files.openFolder(folder))   // there, reachable without a link, not hidden
-            vault = folder.isEmpty ? workspace.vault : try LPVault(root: workspace.vault.root.appendingPathComponent(folder))
+            // Exactly a name that was offered.
+            guard let workspace = workspaces.first(where: { $0.name == choice.workspace }) else {
+                throw VaultError("“\(choice.workspace)” isn’t an allowed workspace, so nothing was chosen.")
+            }
+            let folder = try workspace.vault.folder(choice.folder)
+            // Opened once and checked (there, no link, not hidden); the chosen folder's vault keeps
+            // that very handle, so it can't be redirected later.
+            let handle = try workspace.vault.files.openFolder(folder)
+            if folder.isEmpty {
+                close(handle)
+                vault = workspace.vault
+            } else {
+                vault = LPVault(files: AnchoredFiles(adopting: handle), root: workspace.vault.root.appendingPathComponent(folder))
+            }
             scope = (workspace.name, folder)
             return Self.json(["using": ["workspace": workspace.name, "folder": folder.isEmpty ? NSNull() : folder as Any],
-                              "note": folder.isEmpty ? "Paths are now relative to the workspace."
-                                  : "Only “\(folder)” and what's inside it can be used now; paths are relative to it."])
+                              "note": folder.isEmpty ? "The person allowed the whole workspace; paths are relative to it."
+                                  : "The person allowed only “\(folder)”; nothing outside it can be used, and paths are relative to it."])
         default:
             break
         }
@@ -397,9 +454,8 @@ nonisolated final class MCPServer {
 
     static let instructions = """
     LP is a Mac app whose notes, tasks and Kanban boards are plain Markdown files in one folder (the workspace). \
-    Before reading or changing anything, ASK THE PERSON which workspace — and, if they want, which folder in it — \
-    you may use: show them the choices from lp_list_workspaces, then call lp_use_workspace with their answer. \
-    Never pick a workspace or folder yourself, and ask again before switching to another one. \
+    Before reading or changing anything, call lp_use_workspace: LP then asks the person directly which workspace — \
+    and which folder in it, if any — you may use. Never guess or pick one yourself; to switch, call it again. \
     These tools read and change those files directly, the way LP does; LP shows the changes when it's open. \
     Paths are relative to the workspace. Nothing can be deleted. Boards are changed card by card \
     (lp_add_card, lp_update_card) so they stay valid; pages with lp_append_to_page, lp_replace_text or lp_update_page. \
@@ -408,13 +464,13 @@ nonisolated final class MCPServer {
 
     static let tools: [Tool] = [
         Tool(name: "lp_list_workspaces", title: "List workspaces",
-             description: "Lists the LP workspaces this server may use (and the folders at the top of each), and which one is chosen for this session. Show these to the person and ask which to use.",
+             description: "Says which workspace (and folder) the person chose for this session, and the folders at its top. Before a choice it shows nothing about the workspaces: call lp_use_workspace.",
              properties: [:], required: [], readOnly: true, idempotent: true),
         Tool(name: "lp_use_workspace", title: "Use a workspace",
-             description: "Chooses the workspace — and optionally one folder inside it — for this session. Call it only with what the person chose; never choose yourself. Every other tool works only after this, and only inside the chosen workspace or folder; paths are then relative to it.",
-             properties: ["workspace": text("The workspace's name, as lp_list_workspaces shows it."),
-                          "folder": text("Optional: one folder inside it to limit everything to, e.g. \"Projects\".")],
-             required: ["workspace"], readOnly: false, idempotent: true),
+             description: "Asks the person — directly, in a form — which workspace and which folder in it, if any, you may use in this conversation. Every other tool works only after they've chosen, and only inside what they chose; paths are then relative to it. Call it again to switch.",
+             properties: ["workspace": text("Optional: a workspace to suggest (the person still chooses)."),
+                          "folder": text("Optional: a folder to suggest (the person still chooses).")],
+             required: [], readOnly: false, idempotent: false),
         Tool(name: "lp_list_pages", title: "List pages",
              description: "Lists every page and board in the workspace (or one folder), with its kind and when it last changed.",
              properties: ["folder": text("Only this folder and its subfolders, e.g. \"Projects\". Default: everything.")],
