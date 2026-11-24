@@ -44,8 +44,8 @@ nonisolated final class LPVault {
     /// A page inside the workspace: a Markdown file, not hidden, not reached through a link
     /// leading outside. `mustExist` asks for a file that is there now.
     func page(_ raw: String, mustExist: Bool = true) throws -> (path: String, url: URL) {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let path = PathSafety.contained(trimmed), !path.isEmpty else {
+        // Used exactly as given: " Note.md" and "Note.md" are different pages.
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let path = PathSafety.contained(raw), !path.isEmpty else {
             throw VaultError("“\(raw)” isn’t a path inside the workspace. Use a path relative to it, like Projects/Plan.md.")
         }
         guard Self.pageExtensions.contains((path as NSString).pathExtension.lowercased()) else {
@@ -55,10 +55,12 @@ nonisolated final class LPVault {
             throw VaultError("“\(path)” is in a hidden folder, which LP doesn’t use for pages.")
         }
         let url = root.appendingPathComponent(path)
+        try refuseLinks(path)
         if mustExist {
-            var isFolder: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), !isFolder.boolValue else {
-                throw VaultError("There’s no page at “\(path)”. Use lp_list_pages or lp_search to find it.")
+            let type = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType
+            guard type == .typeRegular else {
+                throw VaultError(type == nil ? "There’s no page at “\(path)”. Use lp_list_pages or lp_search to find it."
+                                             : "“\(path)” isn’t a regular file, so it isn’t used.")
             }
             guard PathSafety.isInside(url, root: root) else { throw VaultError("“\(path)” leads outside the workspace.") }
         } else {
@@ -75,17 +77,34 @@ nonisolated final class LPVault {
             throw VaultError("“\(path)” is a hidden folder, which LP doesn’t use for pages.")
         }
         let url = path.isEmpty ? root : root.appendingPathComponent(path)
+        try refuseLinks(path)
         guard PathSafety.resolvesInside(url, root: root) else { throw VaultError("“\(path)” leads outside the workspace.") }
         return (path, url)
+    }
+
+    /// No part of the path may be a link (symbolic link or alias file), even one leading back
+    /// inside: a link could name a hidden folder, or be pointed elsewhere later. LP's sidebar
+    /// doesn't follow links either.
+    func refuseLinks(_ path: String) throws {
+        var current = root
+        for part in path.split(separator: "/") {
+            current.appendPathComponent(String(part))
+            guard let type = (try? FileManager.default.attributesOfItem(atPath: current.path))?[.type] as? FileAttributeType else { return }
+            if type == .typeSymbolicLink { throw VaultError("“\(path)” goes through a link, which LP’s tools don’t follow.") }
+        }
     }
 
     // MARK: - Reading
 
     /// A file's text: refused when it's too big or isn't valid UTF-8 (LP leaves those to the editor).
     func readText(at url: URL) throws -> (text: String, data: Data) {
-        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        guard size <= Self.maxFileSize else { throw VaultError("This page is larger than 4 MB, so it isn’t read here.") }
-        let data = try Data(contentsOf: url)
+        // Only regular files (a pipe named like a page would block the server), and never more
+        // than the limit, even if the file grows while it's read.
+        guard (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType == .typeRegular,
+              let handle = FileHandle(forReadingAtPath: url.path) else { throw VaultError("This page can’t be read.") }
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: Self.maxFileSize + 1) ?? Data()
+        guard data.count <= Self.maxFileSize else { throw VaultError("This page is larger than 4 MB, so it isn’t read here.") }
         guard let text = String(data: data, encoding: .utf8) else {
             throw VaultError("This file isn’t UTF-8 text, so it isn’t read or changed here.")
         }
@@ -106,24 +125,31 @@ nonisolated final class LPVault {
 
     /// Every page in `folder` and below, by path. Hidden folders, packages and `node_modules`
     /// are skipped, as in LP's sidebar.
+    /// Whether the last scan stopped at `maxPages` (results are then incomplete).
+    private(set) var lastScanTruncated = false
+
     func pages(in folderPath: String = "") throws -> [PageInfo] {
         let base = try folder(folderPath)
-        guard let walker = FileManager.default.enumerator(
-            at: base.url, includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
+        lastScanTruncated = false
+        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .contentModificationDateKey]
+        guard let walker = FileManager.default.enumerator(at: base.url, includingPropertiesForKeys: keys,
+                                                          options: [.skipsHiddenFiles, .skipsPackageDescendants]) else {
+            throw VaultError("The folder “\(base.path.isEmpty ? "workspace" : base.path)” can’t be read.")
+        }
         var found: [PageInfo] = []
         for case let url as URL in walker {
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey, .isSymbolicLinkKey])
+            let values = try? url.resourceValues(forKeys: Set(keys))
             if values?.isDirectory == true {
                 if url.lastPathComponent == "node_modules" { walker.skipDescendants() }
                 continue
             }
-            guard values?.isSymbolicLink != true,
+            // Regular files only: links, pipes and the like are never pages.
+            guard values?.isRegularFile == true,
                   Self.pageExtensions.contains(url.pathExtension.lowercased()) else { continue }
             let path = Self.relativePath(of: url, under: base.url, prefix: base.path)
             found.append(PageInfo(path: path, title: Self.title(of: path), isBoard: isBoard(url),
                                   modified: values?.contentModificationDate ?? .distantPast))
-            if found.count >= Self.maxPages { break }
+            if found.count >= Self.maxPages { lastScanTruncated = true; break }
         }
         return found.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
@@ -298,6 +324,7 @@ nonisolated final class LPVault {
             let (text, data) = try readText(at: url)
             let updated = try change(text)
             guard updated != text else { return text }
+            try Self.refuseTooBig(updated)
             // shortcut: the check-then-write window is microseconds; a file lock isn't worth it for notes.
             guard (try? Data(contentsOf: url)) == data else { continue }
             try SafeFileWriter.write(Data(updated.utf8), to: url)
@@ -314,6 +341,8 @@ nonisolated final class LPVault {
         guard PathSafety.isInside(target.url, root: root) else { throw VaultError("That folder leads outside the workspace.") }
         let name = PageNaming.availableName(base, extension: "md", in: target.url)
         let body = content.isEmpty || content.hasSuffix("\n") ? content : content + "\n"
+        try Self.refuseTooBig(body)
+        try refuseLinks(target.path)
         try Data(body.utf8).write(to: target.url.appendingPathComponent(name), options: .withoutOverwriting)
         return target.path.isEmpty ? name : target.path + "/" + name
     }
@@ -360,6 +389,11 @@ nonisolated final class LPVault {
         return target.path
     }
 
+    /// Nothing is written that the server couldn't read back.
+    static func refuseTooBig(_ text: String) throws {
+        if text.utf8.count > maxFileSize { throw VaultError("That would make the page larger than 4 MB, so it wasn’t written.") }
+    }
+
     static func refuseBoard(_ text: String, _ path: String) throws {
         if BoardParser.isBoard(text) {
             throw VaultError("“\(path)” is a board. Change it card by card with lp_add_card and lp_update_card, so it stays a valid board.")
@@ -372,6 +406,9 @@ nonisolated final class LPVault {
         if let existing = try pages().filter({ !$0.isBoard && $0.title == day.iso }).min(by: { $0.path.count < $1.path.count }) {
             return (existing.path, false)
         }
+        guard !lastScanTruncated else {
+            throw VaultError("This workspace has more than \(Self.maxPages) pages, so its daily note may exist beyond what was scanned. Pass its path to lp_read_page instead.")
+        }
         var isFolder: ObjCBool = false
         let fallback = FileManager.default.fileExists(atPath: root.appendingPathComponent("Daily Notes").path, isDirectory: &isFolder)
             && isFolder.boolValue ? "Daily Notes" : ""
@@ -380,7 +417,7 @@ nonisolated final class LPVault {
 
     /// Ticks a task off or reopens it. On a page the task is found by its wording (and its place,
     /// `ordinal`, when two read the same); on a board, `text` is the card (ID or title).
-    func setTaskDone(in raw: String, text: String, ordinal: Int? = nil, done: Bool) throws -> String {
+    func setTaskDone(in raw: String, text: String, ordinal: Int? = nil, due: Day? = nil, done: Bool) throws -> String {
         let target = try page(raw)
         if BoardParser.isBoard(try readText(at: target.url).text) {
             return try updateCard(on: raw, card: text, CardChange(done: done))
@@ -391,16 +428,18 @@ nonisolated final class LPVault {
             var document = MarkdownParser.parse(source)
             let tasks = PageTasks.tasks(in: document)
             let wanted = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Same wording (and the same due date, when given); the ordinal only chooses among those,
+            // so a page reordered since it was listed can't make it tick a different task.
+            let matches = tasks.indices.filter { tasks[$0].text == wanted && (due == nil || tasks[$0].due == due) }
             let index: Int
-            if let ordinal, tasks.indices.contains(ordinal), tasks[ordinal].text == wanted {
+            if let ordinal, matches.contains(ordinal) {
                 index = ordinal
             } else {
-                let matches = tasks.indices.filter { tasks[$0].text == wanted }
                 guard !matches.isEmpty else {
-                    throw VaultError("There’s no task “\(wanted)” on “\(target.path)”. Use lp_list_tasks to see its tasks as written.")
+                    throw VaultError("There’s no task “\(wanted)”\(due.map { " due \($0.iso)" } ?? "") on “\(target.path)”. Use lp_list_tasks to see its tasks as written.")
                 }
                 guard matches.count == 1 else {
-                    throw VaultError("\(matches.count) tasks on “\(target.path)” read “\(wanted)”. Pass its ordinal from lp_list_tasks.")
+                    throw VaultError("\(matches.count) tasks on “\(target.path)” read “\(wanted)”. Pass its ordinal (and due date) from lp_list_tasks.")
                 }
                 index = matches[0]
             }
@@ -453,10 +492,37 @@ nonisolated final class LPVault {
         return byTitle[0]
     }
 
+    /// A card title on one line: line breaks and other control characters become spaces, so
+    /// nothing typed can start a new card or list in the file.
+    static func oneLine(_ text: String) -> String {
+        String(String.UnicodeScalarView(text.unicodeScalars.map { CharacterSet.controlCharacters.contains($0) || CharacterSet.newlines.contains($0) ? " " : $0 }))
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Tags as Obsidian writes them: letters, digits, _, - and /, without the #.
+    static func cleanTags(_ tags: [String]) throws -> [String] {
+        try tags.map { tag in
+            let bare = tag.hasPrefix("#") ? String(tag.dropFirst()) : tag
+            let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-/"))
+            guard !bare.isEmpty, bare.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+                throw VaultError("“\(tag)” isn’t a tag: use letters, digits, _, - or / (no spaces).")
+            }
+            return bare
+        }
+    }
+
+    /// Notes keep their lines; Windows and old Mac line endings become plain ones.
+    static func cleanNotes(_ notes: String) -> String {
+        notes.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+    }
+
     func addCard(to raw: String, list: String, title: String, due: Day? = nil, time: TimeOfDay? = nil,
                  tags: [String] = [], notes: String = "") throws -> String {
-        let cleanTitle = title.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+        let cleanTitle = Self.oneLine(title)
         guard !cleanTitle.isEmpty else { throw VaultError("Give the card a title.") }
+        let tags = try Self.cleanTags(tags)
+        let notes = Self.cleanNotes(notes)
+        if time != nil, due == nil { throw VaultError("A due time needs a due date too.") }
         let target = try page(raw)
         let id = BoardIDs.newCardID()
         try modify(target.url) { text in
@@ -498,18 +564,30 @@ nonisolated final class LPVault {
             var board = BoardParser.parse(text)
             let (laneIndex, cardIndex) = try Self.card(reference, in: board)
             let id = board.lanes[laneIndex].cards[cardIndex].id
-            if let title = change.title, title.trimmingCharacters(in: .whitespaces).isEmpty { throw VaultError("A card needs a title.") }
-            let edit = CardEdit(title: change.title?.replacingOccurrences(of: "\n", with: " "), tags: change.tags,
+            let title = change.title.map(Self.oneLine)
+            if let title, title.isEmpty { throw VaultError("A card needs a title.") }
+            let edit = CardEdit(title: title, tags: try change.tags.map(Self.cleanTags),
                                 changesDue: change.changesDue, due: change.due, changesTime: change.changesTime, time: change.time,
-                                body: change.notes, isDone: change.done)
-            board.lanes[laneIndex].cards[cardIndex] = edit.applied(to: board.lanes[laneIndex].cards[cardIndex])
-            var destination = change.moveTo.map { try? Self.lane($0, in: board) } ?? nil
-            if let moveTo = change.moveTo, destination == nil { _ = try Self.lane(moveTo, in: board) }
+                                body: change.notes.map(Self.cleanNotes), isDone: change.done)
+            let editedCard = edit.applied(to: board.lanes[laneIndex].cards[cardIndex])
+            if change.changesTime, change.time != nil, editedCard.due == nil { throw VaultError("A due time needs a due date too.") }
+            board.lanes[laneIndex].cards[cardIndex] = editedCard
+            var destination: Int? = try change.moveTo.map { try Self.lane($0, in: board) }
+            if let destination, change.done == false, board.lanes[destination].marksComplete {
+                throw VaultError("“\(board.lanes[destination].title)” counts its cards as done, so a card there can’t be open.")
+            }
             if destination == nil, change.done == false, board.lanes[laneIndex].marksComplete {
                 destination = board.lanes.firstIndex { !$0.marksComplete }
+                if destination == nil { throw VaultError("Every list on this board counts its cards as done, so this card can’t be reopened.") }
             }
+            if change.before != nil, change.moveTo == nil { throw VaultError("before_card only works with move_to_list.") }
             if let destination, destination != laneIndex || change.before != nil {
-                let beforeID = try change.before.map { try Self.card($0, in: board) }.map { board.lanes[$0.lane].cards[$0.card].id }
+                let beforeID = try change.before.map { try Self.card($0, in: board) }.map { place -> String in
+                    guard place.lane == destination else {
+                        throw VaultError("“\(change.before!)” isn’t in “\(board.lanes[destination].title)”, so the card can’t go before it.")
+                    }
+                    return board.lanes[place.lane].cards[place.card].id
+                }
                 board.moveCards([id], toLane: board.lanes[destination].id, before: beforeID)
                 // An explicit done/open wins over the list's rule.
                 if let done = change.done, let moved = board.lanes[destination].cards.firstIndex(where: { $0.id == id }),

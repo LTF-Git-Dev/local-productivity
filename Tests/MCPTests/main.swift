@@ -99,7 +99,8 @@ for item in tools {
     check(required.allSatisfy { properties[$0] != nil }, "\(name): every required argument is described")
     check((item["description"] as? String)?.isEmpty == false, "\(name) is described")
     let notes = item["annotations"] as? [String: Any]
-    check(notes?["destructiveHint"] as? Bool == false, "\(name) is never destructive")
+    let replacesText = ["lp_replace_text", "lp_update_page", "lp_update_card"].contains(name)
+    check(notes?["destructiveHint"] as? Bool == replacesText, "\(name): destructive only if it can replace text that's there")
     check(name.hasPrefix("lp_"), "\(name) is prefixed")
 }
 let readOnly = Set(tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true }.compactMap { $0["name"] as? String })
@@ -384,6 +385,83 @@ let firstCopy = (((tool("lp_read_board", ["path": "Projects/Hand Board.md"]).jso
 check(!tool("lp_update_card", ["board": "Projects/Hand Board.md", "card": firstCopy, "done": true]).error, "then one copy is picked by id")
 check(BoardParser.serialize(BoardParser.parse(read("Projects/Hand Board.md")!)) == read("Projects/Hand Board.md")!,
       "the board is exactly as LP writes it")
+
+// MARK: Review fixes (Codex round 1)
+
+// Protocol: malformed arguments and ids.
+let notObject = send("tools/call", ["name": "lp_daily_note", "arguments": "invalid"])
+check(((notObject?["error"] as? [String: Any])?["code"] as? Int) == -32602, "arguments that aren't an object are refused")
+check(!exists("2026-11-24 2.md"), "and create nothing")
+let misspelt = tool("lp_list_tasks", ["stauts": "done"])
+check(misspelt.error && misspelt.text.contains("no argument “stauts”"), "a misspelt argument is refused, not ignored: \(misspelt.text)")
+let boolID = server.handle(#"{"jsonrpc":"2.0","id":true,"method":"ping"}"#).flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+check(((boolID?["error"] as? [String: Any])?["code"] as? Int) == -32600, "true isn't a request id")
+check(tool("lp_list_pages").json["truncated"] as? Bool == false, "a full scan says it's complete")
+
+// Paths are used exactly: " Note.md" isn't "Note.md".
+write("Note.md", "plain\n")
+write(" Note.md", "spaced\n")
+check(tool("lp_read_page", ["path": " Note.md"]).json["content"] as? String == "spaced\n", "a leading space names its own page")
+tool("lp_append_to_page", ["path": " Note.md", "content": "more"])
+check(read("Note.md") == "plain\n", "and the other page is untouched")
+
+// A link that stays inside but names a hidden folder.
+try! fm.createSymbolicLink(at: root.appendingPathComponent("Visible"), withDestinationURL: root.appendingPathComponent(".obsidian"))
+check(tool("lp_read_page", ["path": "Visible/workspace.md"]).text.contains("link"), "a link to a hidden folder can't be read through")
+check(tool("lp_append_to_page", ["path": "Visible/workspace.md", "content": "x"]).error, "nor written through")
+check(tool("lp_create_page", ["title": "x", "folder": "Visible"]).error, "nor used as a folder")
+check(read(".obsidian/workspace.md") == "settings\n", "the hidden file is untouched")
+
+// A named pipe called like a page neither blocks nor is listed.
+check(mkfifo(root.appendingPathComponent("Pipe.md").path, 0o644) == 0, "a pipe was made")
+check(!((tool("lp_list_pages").json["pages"] as? [[String: Any]]) ?? []).contains { $0["path"] as? String == "Pipe.md" }, "a pipe isn't listed")
+check(tool("lp_read_page", ["path": "Pipe.md"]).text.contains("regular file"), "nor read (and nothing hangs)")
+check(tool("lp_list_tasks").error == false && tool("lp_search", ["query": "plain"]).error == false, "scans skip it")
+
+// Nothing is written that can't be read back.
+let big = String(repeating: "a", count: LPVault.maxFileSize)
+check(tool("lp_append_to_page", ["path": "Note.md", "content": big]).text.contains("4 MB"), "a page can't grow past 4 MB")
+check(tool("lp_create_page", ["title": "Big", "content": big + "b"]).text.contains("4 MB"), "nor start past it")
+check(read("Note.md") == "plain\n" && !exists("Big.md"), "and nothing was written")
+
+// Card text can't change a board's structure.
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "tags": ["ok\n## Hacked\n- [ ] Evil"]]).text.contains("isn’t a tag"),
+      "a tag with a line break is refused")
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "tags": ["two words"]]).error, "and one with a space")
+let tidy = tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "Line one\n## Fake list\r- [ ] Fake card", "tags": ["#ok", "a/b-c_d"]])
+let tidyID = tidy.json["added"] as? String ?? "?"
+check(!tidy.error, "a title with line breaks is added on one line: \(tidy.text)")
+let lanes = (tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]] ?? [])
+check(lanes.map { $0["title"] as? String ?? "" } == ["Backlog", "Next", "In progress", "Review", "Done"], "no list was injected: \(lanes.map { $0["title"] ?? "" })")
+let tidyCard = lanes.count > 1 ? (lanes[1]["cards"] as? [[String: Any]] ?? []).first { $0["id"] as? String == tidyID } : nil
+check(tidyCard?["title"] as? String == "Line one ## Fake list - [ ] Fake card", "the title stays one line: \(tidyCard?["title"] ?? "")")
+check(tidyCard?["tags"] as? [String] == ["ok", "a/b-c_d"], "tags lose their #")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "notes": "one\r\ntwo"]).error == false, "notes with Windows line breaks")
+check(((tool("lp_read_board", ["path": "Projects/Launch.md"]).json["lists"] as? [[String: Any]])?[1]["cards"] as? [[String: Any]] ?? [])
+      .first { $0["id"] as? String == tidyID }?["notes"] as? String == "one\ntwo", "are kept as two lines")
+
+// Impossible card changes are explained, not reported as done.
+check(tool("lp_add_card", ["board": "Projects/Launch.md", "list": "Next", "title": "x", "time": "10:00"]).text.contains("due date"),
+      "a time without a date is refused")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "time": "10:00"]).text.contains("due date"), "on an undated card too")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "move_to_list": "Done", "done": false]).text.contains("can’t be open"),
+      "open in a list that counts as done is refused")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "move_to_list": "Review", "before_card": "Old win"]).text.contains("isn’t in"),
+      "before a card in another list is refused")
+check(tool("lp_update_card", ["board": "Projects/Launch.md", "card": tidyID, "title": "y", "before_card": "Old win"]).text.contains("only works with"),
+      "before_card alone is refused")
+write("AllDone.md", "---\n\nkanban-plugin: basic\n\n---\n\n## Finished\n\n**Complete**\n- [x] Shipped ^cship01\n\n\n")
+check(tool("lp_update_card", ["board": "AllDone.md", "card": "cship01", "done": false]).text.contains("Every list"),
+      "a card can't be reopened when every list counts as done")
+
+// Look-alike tasks with different due dates.
+write("Reports.md", "- [ ] Send report 📅 2026-11-30\n- [ ] Send report 📅 2026-11-25\n")
+check(tool("lp_set_task_done", ["path": "Reports.md", "task": "Send report", "due": "2026-11-25", "done": true]).json["result"] as? String == "Ticked off.",
+      "the due date tells look-alikes apart")
+check(read("Reports.md") == "- [ ] Send report 📅 2026-11-30\n- [x] Send report 📅 2026-11-25\n", "the right one: \(read("Reports.md") ?? "")")
+check(tool("lp_set_task_done", ["path": "Reports.md", "task": "Send report", "ordinal": 1, "due": "2026-11-30", "done": true]).json["result"]
+      as? String == "Ticked off.", "a stale ordinal can't override the due date")
+check(read("Reports.md") == "- [x] Send report 📅 2026-11-30\n- [x] Send report 📅 2026-11-25\n", "still the one with that date")
 
 // MARK: Nothing is ever deleted
 

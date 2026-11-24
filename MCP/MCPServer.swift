@@ -40,7 +40,10 @@ nonisolated final class MCPServer {
         let params = message["params"] as? [String: Any] ?? [:]
         // Notifications (no id) never get an answer.
         guard let id, !(id is NSNull) else { return nil }
-        guard id is String || id is NSNumber else { return Self.encode(error: -32600, "Invalid request id.", id: NSNull()) }
+        // Ids are text or numbers — not true/false, which JSON also reads as a number here.
+        guard id is String || (id as? NSNumber).map({ CFGetTypeID($0) != CFBooleanGetTypeID() }) == true else {
+            return Self.encode(error: -32600, "Invalid request id.", id: NSNull())
+        }
 
         switch method {
         case "initialize":
@@ -58,10 +61,20 @@ nonisolated final class MCPServer {
             return Self.encode(result: ["tools": Self.tools.map(\.json)], id: id)
         case "tools/call":
             guard let name = params["name"] as? String else { return Self.encode(error: -32602, "tools/call needs a tool name.", id: id) }
-            guard Self.tools.contains(where: { $0.name == name }) else {
+            guard let tool = Self.tools.first(where: { $0.name == name }) else {
                 return Self.encode(error: -32602, "There’s no tool called “\(name)”.", id: id)
             }
+            if let given = params["arguments"], !(given is NSNull), !(given is [String: Any]) {
+                return Self.encode(error: -32602, "A tool's arguments must be an object.", id: id)
+            }
             let arguments = params["arguments"] as? [String: Any] ?? [:]
+            // Arguments the tool doesn't have are refused rather than ignored (a misspelt one would
+            // otherwise silently do nothing) — as a tool error, so the model can correct itself.
+            let unknown = arguments.keys.filter { tool.properties[$0] == nil }.sorted()
+            if !unknown.isEmpty {
+                let text = "\(name) has no argument \(unknown.map { "“\($0)”" }.joined(separator: ", ")). It takes: \(tool.properties.keys.sorted().joined(separator: ", "))."
+                return Self.encode(result: ["content": [["type": "text", "text": text]], "isError": true], id: id)
+            }
             do {
                 return Self.encode(result: ["content": [["type": "text", "text": try call(name, Arguments(arguments))]], "isError": false], id: id)
             } catch {
@@ -168,13 +181,13 @@ nonisolated final class MCPServer {
         case "lp_list_pages":
             let pages = try vault.pages(in: try a.optionalString("folder") ?? "")
             let formatter = ISO8601DateFormatter()
-            return Self.json(["count": pages.count, "pages": pages.map {
+            return Self.json(["count": pages.count, "truncated": vault.lastScanTruncated, "pages": pages.map {
                 ["path": $0.path, "title": $0.title, "kind": $0.isBoard ? "board" : "page", "modified": formatter.string(from: $0.modified)]
             }])
 
         case "lp_search":
             let hits = try vault.search(try a.string("query"), limit: try a.optionalInt("limit") ?? 20)
-            return Self.json(["count": hits.count, "results": hits.map { ["path": $0.path, "title": $0.title, "snippet": $0.snippet] }])
+            return Self.json(["count": hits.count, "truncated": vault.lastScanTruncated, "results": hits.map { ["path": $0.path, "title": $0.title, "snippet": $0.snippet] }])
 
         case "lp_read_page":
             let page = try vault.readPage(try a.string("path"))
@@ -188,7 +201,7 @@ nonisolated final class MCPServer {
             let dueBy = try a.optionalString("due_by").map { try day($0) }
             let tasks = try vault.tasks(filter, dueBy: dueBy, in: try a.optionalString("folder") ?? "")
             let now = today()
-            return Self.json(["today": now.iso, "count": tasks.count, "tasks": tasks.map { task -> [String: Any] in
+            return Self.json(["today": now.iso, "count": tasks.count, "truncated": vault.lastScanTruncated, "tasks": tasks.map { task -> [String: Any] in
                 var item: [String: Any] = ["path": task.path, "text": task.text, "done": task.isDone,
                                            "due": task.due.map { $0.iso as Any } ?? NSNull(), "time": Self.iso(task.time),
                                            "overdue": !task.isDone && (task.due.map { $0 < now } ?? false)]
@@ -200,7 +213,7 @@ nonisolated final class MCPServer {
         case "lp_list_boards":
             let now = today()
             let boards = try vault.boards(in: try a.optionalString("folder") ?? "")
-            return Self.json(["today": now.iso, "count": boards.count, "boards": boards.map { board -> [String: Any] in
+            return Self.json(["today": now.iso, "count": boards.count, "truncated": vault.lastScanTruncated, "boards": boards.map { board -> [String: Any] in
                 ["path": board.path, "title": board.title, "cards": board.summary.total, "done": board.summary.done,
                  "percent_done": board.summary.percent, "overdue": board.summary.overdue(on: now),
                  "due_soon": board.summary.dueSoon(on: now),
@@ -251,7 +264,8 @@ nonisolated final class MCPServer {
 
         case "lp_set_task_done":
             let message = try vault.setTaskDone(in: try a.string("path"), text: try a.string("task"),
-                                                ordinal: try a.optionalInt("ordinal"), done: try a.bool("done"))
+                                                ordinal: try a.optionalInt("ordinal"),
+                                                due: try a.optionalString("due").map { try day($0) }, done: try a.bool("done"))
             return Self.json(["result": message])
 
         case "lp_create_board":
@@ -303,11 +317,13 @@ nonisolated final class MCPServer {
         let required: [String]
         let readOnly: Bool
         let idempotent: Bool
+        /// It can replace or remove text that is there now (a page's text, a card's notes).
+        var destructive = false
 
         var json: [String: Any] {
             ["name": name, "title": title, "description": description,
              "inputSchema": ["type": "object", "properties": properties, "required": required, "additionalProperties": false],
-             "annotations": ["title": title, "readOnlyHint": readOnly, "destructiveHint": false,
+             "annotations": ["title": title, "readOnlyHint": readOnly, "destructiveHint": destructive,
                              "idempotentHint": idempotent, "openWorldHint": false]]
         }
     }
@@ -361,11 +377,11 @@ nonisolated final class MCPServer {
         Tool(name: "lp_replace_text", title: "Edit text on a page",
              description: "Replaces one exact passage of a page with new text. The passage must appear exactly once (include more of it if needed). Not for boards.",
              properties: ["path": text(pathText), "find": text("The exact text now on the page."), "replace_with": text("What to put instead (may be empty).")],
-             required: ["path", "find", "replace_with"], readOnly: false, idempotent: false),
+             required: ["path", "find", "replace_with"], readOnly: false, idempotent: false, destructive: true),
         Tool(name: "lp_update_page", title: "Rewrite a page",
              description: "Replaces a page's whole Markdown. Needs the revision from lp_read_page, and refuses if the page changed since — read it again then. Not for boards. Prefer lp_replace_text for small edits.",
              properties: ["path": text(pathText), "content": text("The page's complete new Markdown."), "revision": text("The revision lp_read_page returned.")],
-             required: ["path", "content", "revision"], readOnly: false, idempotent: false),
+             required: ["path", "content", "revision"], readOnly: false, idempotent: false, destructive: true),
         Tool(name: "lp_daily_note", title: "Daily note",
              description: "Opens the daily note for a date (named like 2026-11-24, found anywhere in the workspace), creating it if needed — in \"Daily Notes\" when that folder exists — optionally adding Markdown to it. Returns its content.",
              properties: ["date": text("YYYY-MM-DD, today (default), tomorrow or yesterday."),
@@ -376,6 +392,7 @@ nonisolated final class MCPServer {
              description: "Marks a task done or open again. On a page, `task` is the task's text as lp_list_tasks shows it (pass `ordinal` too if two read the same). On a board, `task` is the card's id or title; reopening a card in a list that counts as done moves it back to the first open list.",
              properties: ["path": text(pathText), "task": text("The task's text (pages) or the card's id or title (boards)."),
                           "ordinal": ["type": "integer", "minimum": 0, "description": "The task's ordinal from lp_list_tasks (pages only, optional)."],
+                          "due": text("The task's due date from lp_list_tasks, if it has one (pages only) — tells look-alike tasks apart."),
                           "done": ["type": "boolean", "description": "true to tick it off, false to reopen it."]],
              required: ["path", "task", "done"], readOnly: false, idempotent: true),
         Tool(name: "lp_create_board", title: "Create a board",
@@ -399,6 +416,6 @@ nonisolated final class MCPServer {
                           "notes": text("Replaces the card's notes."), "done": ["type": "boolean", "description": "Mark done or open."],
                           "move_to_list": text("Title of the list to move it to."),
                           "before_card": text("With move_to_list: put it before this card (id or title); default at the end.")],
-             required: ["board", "card"], readOnly: false, idempotent: false),
+             required: ["board", "card"], readOnly: false, idempotent: false, destructive: true),
     ]
 }
