@@ -629,6 +629,30 @@ guardOff.executableURL = URL(fileURLWithPath: "/bin/chmod")
 guardOff.arguments = ["-a", "everyone deny delete", root.appendingPathComponent("Guarded.md").path]
 try! guardOff.run(); guardOff.waitUntilExit()
 
+// MARK: Review fixes (Codex round 6)
+
+// A page with a second hard link outside the workspace: an edit never touches that other file.
+write("Linked Twice.md", "original\n")
+let twicePath = root.appendingPathComponent("Linked Twice.md").path
+check(chflags(twicePath, UInt32(UF_NODUMP)) == 0, "a flag was set")
+let otherLink = outside.appendingPathComponent("Other Link.md").path
+check(link(twicePath, otherLink) == 0, "a second hard link was made outside")
+check(!tool("lp_append_to_page", ["path": "Linked Twice.md", "content": "edited"]).error, "the page is edited")
+var otherInfo = stat()
+stat(otherLink, &otherInfo)
+check(otherInfo.st_flags & UInt32(UF_NODUMP) != 0, "the other link keeps its flag")
+check((try? String(contentsOfFile: otherLink, encoding: .utf8)) == "original\n", "and its text")
+check(read("Linked Twice.md") == "original\n\nedited\n", "while the page has the edit")
+
+// A folder made invisible through its Finder information.
+write("Invisible/Plan.md", "invisible\n")
+var finderInfo = [UInt8](repeating: 0, count: 32)
+finderInfo[8] = 0x40
+check(setxattr(root.appendingPathComponent("Invisible").path, "com.apple.FinderInfo", &finderInfo, 32, 0, 0) == 0, "Finder's invisible bit was set")
+check(!(tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).contains { ($0["path"] as? String)?.hasPrefix("Invisible") == true },
+      "an invisible folder isn't listed")
+check(tool("lp_read_page", ["path": "Invisible/Plan.md"]).text.contains("hidden"), "nor read by path")
+
 // MARK: Nothing is ever deleted
 
 let before = allFiles()

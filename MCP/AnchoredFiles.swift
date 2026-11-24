@@ -55,7 +55,7 @@ nonisolated final class AnchoredFiles {
                 }
             }
             var info = stat()
-            if fstat(next, &info) != 0 || info.st_flags & UInt32(UF_HIDDEN) != 0 {
+            if fstat(next, &info) != 0 || Self.isHidden(next, flags: info.st_flags) {
                 close(next)
                 throw VaultError("“\(path)” is in a hidden folder, which LP doesn’t use for pages.")
             }
@@ -79,7 +79,7 @@ nonisolated final class AnchoredFiles {
             close(fd)
             throw VaultError("“\(path)” isn’t a regular file, so it isn’t used.")
         }
-        guard info.st_flags & UInt32(UF_HIDDEN) == 0 else {
+        guard !Self.isHidden(fd, flags: info.st_flags) else {
             close(fd)
             throw VaultError("“\(path)” is hidden, so it isn’t used.")
         }
@@ -118,10 +118,16 @@ nonisolated final class AnchoredFiles {
         let folderFD = try openFolder(folder, create: true)
         defer { close(folderFD) }
         let temporary = try writeTemporary(in: folderFD, data, mode: 0o644)
-        defer { unlinkat(folderFD, temporary, 0) }   // harmless once it has been renamed
+        var placed = false
+        defer {
+            // Our own file: cleared and removed if it never got its name.
+            if !placed, !Self.remove(temporary, in: folderFD) {
+                FileHandle.standardError.write(Data("lp-mcp: couldn’t remove the temporary file \(folder)/\(temporary)\n".utf8))
+            }
+        }
         for counter in 1...10_000 {
             let name = counter == 1 ? "\(base).\(ext)" : "\(base) \(counter).\(ext)"
-            if renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_EXCL)) == 0 { return name }
+            if renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_EXCL)) == 0 { placed = true; return name }
             if errno != EEXIST { throw VaultError("The page couldn’t be created (\(String(cString: strerror(errno)))).") }
         }
         throw VaultError("There are too many pages called “\(base)” in that folder.")
@@ -133,7 +139,7 @@ nonisolated final class AnchoredFiles {
         let fd = openat(folderFD, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
         guard fd >= 0 else { throw VaultError("The page couldn’t be written (\(String(cString: strerror(errno)))).") }
         defer { close(fd) }
-        do { try Self.writeAll(fd, data) } catch { unlinkat(folderFD, name, 0); throw error }
+        do { try Self.writeAll(fd, data) } catch { Self.remove(name, in: folderFD); throw error }
         return name
     }
 
@@ -183,13 +189,16 @@ nonisolated final class AnchoredFiles {
             // Keep what the old file carried besides its text: Finder tags and other extended
             // attributes, permissions and its creation date.
             // Tags and permissions are required: without them the edit isn't made.
-            guard fcopyfile(originalFD, fd, nil, copyfile_flags_t(COPYFILE_XATTR | COPYFILE_ACL)) == 0,
-                  fchmod(fd, original.st_mode & 0o7777) == 0 else {
+            guard fcopyfile(originalFD, fd, nil, copyfile_flags_t(COPYFILE_XATTR | COPYFILE_ACL)) == 0 else {
                 throw VaultError("“\(path)” couldn’t keep its Finder tags or permissions, so it wasn’t changed.")
             }
             // Owner and group (so the same people can read it), and the file's flags.
             guard fchown(fd, original.st_uid, original.st_gid) == 0 else {
                 throw VaultError("“\(path)” belongs to another user or group this Mac won’t give it to, so it wasn’t changed.")
+            }
+            // After the owner: changing the owner clears set-user/group-ID bits.
+            guard fchmod(fd, original.st_mode & 0o7777) == 0 else {
+                throw VaultError("“\(path)” couldn’t keep its permissions, so it wasn’t changed.")
             }
             let keptFlags = original.st_flags & UInt32(UF_SETTABLE) & ~UInt32(UF_COMPRESSED | UF_TRACKED)
             guard keptFlags == 0 || fchflags(fd, keptFlags) == 0 else {
@@ -224,7 +233,10 @@ nonisolated final class AnchoredFiles {
         let limit = max(expected.count, data.count) + 1
         if let displaced = try? read(hiddenPath, limit: limit), displaced == expected,
            metadataUnchanged(folderFD, temporary, since: before) {
-            Self.remove(temporary, in: folderFD)
+            // The old file is removed as it is — never altered first: another hard link may share it.
+            guard unlinkat(folderFD, temporary, 0) == 0 else {
+                throw VaultError("“\(path)” was changed, but its previous version couldn’t be removed; it’s kept, hidden, as “\(hiddenPath)”.")
+            }
             return .done
         }
         // Someone saved in between: put their version back.
@@ -244,6 +256,15 @@ nonisolated final class AnchoredFiles {
             throw VaultError("“\(path)” was saved by something else more than once while it was being changed. Both versions are kept: one in the page, one as “\(folder.isEmpty ? copy : folder + "/" + copy)”. Compare them, then read the page again and redo the change.")
         }
         throw VaultError("“\(path)” was saved by something else more than once while it was being changed. One version is in the page, the other kept, hidden, as “\(hiddenPath)”.")
+    }
+
+    /// Whether a file or folder is hidden in Finder: the hidden flag, or the older "invisible" bit
+    /// in its Finder information.
+    static func isHidden(_ fd: Int32, flags: UInt32) -> Bool {
+        if flags & UInt32(UF_HIDDEN) != 0 { return true }
+        var info = [UInt8](repeating: 0, count: 32)
+        guard fgetxattr(fd, "com.apple.FinderInfo", &info, 32, 0, 0) == 32 else { return false }
+        return info[8] & 0x40 != 0   // kIsInvisible (0x4000) in the big-endian flags at offset 8
     }
 
     /// What a file carries besides its text that an edit must keep: permissions, flags and
@@ -291,16 +312,18 @@ nonisolated final class AnchoredFiles {
         return Self.metadata(fd) == before
     }
 
-    /// Removes one of this server's own temporary files — after taking off the access list and
-    /// flags it copied from the page, which could otherwise forbid removing it.
-    private static func remove(_ name: String, in folderFD: Int32) {
+    /// Removes one of this server's own temporary files — a file it created itself, never a page's
+    /// old version — after taking off the access list and flags it copied from the page, which
+    /// could otherwise forbid removing it. False if it couldn't be removed.
+    @discardableResult
+    private static func remove(_ name: String, in folderFD: Int32) -> Bool {
         let fd = openat(folderFD, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         if fd >= 0 {
             if let empty = acl_init(0) { _ = acl_set_fd_np(fd, empty, ACL_TYPE_EXTENDED); acl_free(UnsafeMutableRawPointer(empty)) }
             _ = fchflags(fd, 0)
             close(fd)
         }
-        unlinkat(folderFD, name, 0)
+        return unlinkat(folderFD, name, 0) == 0
     }
 
     // MARK: - Listing
@@ -337,12 +360,18 @@ nonisolated final class AnchoredFiles {
                 let path = prefix.isEmpty ? name : prefix + "/" + name
                 switch info.st_mode & S_IFMT {
                 case S_IFREG:
+                    let file = openat(dirfd(directory), name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+                    guard file >= 0 else { complete = false; continue }
+                    let invisible = Self.isHidden(file, flags: info.st_flags)
+                    close(file)
+                    if invisible { continue }
                     let modified = Date(timeIntervalSince1970: Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9)
                     if !visit(path, modified) { stopped = true }
                 case S_IFDIR:
                     guard name != "node_modules", !Self.packageExtensions.contains((name as NSString).pathExtension.lowercased()) else { continue }
                     let child = openat(dirfd(directory), name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
                     if child < 0 { complete = false; continue }
+                    if Self.isHidden(child, flags: info.st_flags) { close(child); continue }
                     visitFolder(child, path, depth: depth + 1)
                 default:
                     continue   // links, pipes, devices: never pages, never followed
