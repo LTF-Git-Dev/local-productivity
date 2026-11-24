@@ -9,12 +9,6 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 
 ## Unreleased
 
-- **Settings has one size for every tab** and scrolls when a tab is longer, so it fits any screen
-  (General had grown taller than a laptop screen with the LP with Claude steps).
-- **Notifications on/off switch** at the top of Settings → Notifications. Off cancels every reminder
-  and snooze LP has waiting (at once, and LP waits for it when quitting); on plans them again. Your
-  choices for what to be reminded about are kept. Notifications already shown stay.
-
 - 2026-11-25 — **LP 1.0.2 released as the official version**, at the owner's request, after they tested
   1.0.2-beta.1 ("it work"). Their two changes from that test went in first: Settings → General → LP
   with Claude as four numbered steps (each with one short command and a Copy button; the commands
@@ -53,6 +47,14 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
   `docs/first-open-gatekeeper`; website published, app unchanged. The website's Get LP section now
   has a **Download LP** button (`releases/latest`; the site had no download link since it was
   built while the repository was private) and the Open Anyway steps; README quotes the message.
+
+## 1.0.3
+
+- **Settings fits your screen.** It has one size for every tab** and scrolls when a tab is longer, so it fits any screen
+  (General had grown taller than a laptop screen with the LP with Claude steps).
+- **Notifications on/off switch** at the top of Settings → Notifications. Off cancels every reminder
+  and snooze LP has waiting (at once, and LP waits for it when quitting); on plans them again. Your
+  choices for what to be reminded about are kept. Notifications already shown stay.
 
 ## 1.0.2 — 2026-11-25
 
