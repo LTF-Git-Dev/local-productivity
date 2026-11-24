@@ -158,6 +158,8 @@ final class AppSettings {
     var dailyNotesFolder: String { didSet { store(dailyNotesFolder, Keys.dailyFolder) } }
 
     // Reminders (Settings → Notifications).
+    /// The switch for all of LP's reminders; on unless turned off (existing settings keep it on).
+    var remindersEnabled: Bool { didSet { store(remindersEnabled, Keys.enabled); remindersChanged() } }
     var remindsDueItems: Bool { didSet { store(remindsDueItems, Keys.dueItems); remindersChanged() } }
     var dueReminderTime: TimeOfDay { didSet { store(dueReminderTime.minutes, Keys.dueTime); remindersChanged() } }
     var sendsDailySummary: Bool { didSet { store(sendsDailySummary, Keys.summary); remindersChanged() } }
@@ -167,7 +169,7 @@ final class AppSettings {
     var includesAppleCalendarEvents: Bool { didSet { store(includesAppleCalendarEvents, Keys.appleEvents); remindersChanged() } }
 
     var reminders: ReminderSettings {
-        ReminderSettings(remindsDueItems: remindsDueItems, dueTime: dueReminderTime, sendsDailySummary: sendsDailySummary,
+        ReminderSettings(isEnabled: remindersEnabled, remindsDueItems: remindsDueItems, dueTime: dueReminderTime, sendsDailySummary: sendsDailySummary,
                          summaryTime: summaryTime, eventLeadMinutes: eventLeadMinutes,
                          includesAppleCalendarEvents: includesAppleCalendarEvents)
     }
@@ -204,6 +206,7 @@ final class AppSettings {
         dailyNotesFolder = defaults?.string(forKey: Keys.dailyFolder) ?? "Daily Notes"
 
         let standard = ReminderSettings()
+        remindersEnabled = defaults?.object(forKey: Keys.enabled) as? Bool ?? standard.isEnabled
         remindsDueItems = defaults?.object(forKey: Keys.dueItems) as? Bool ?? standard.remindsDueItems
         dueReminderTime = (defaults?.object(forKey: Keys.dueTime) as? Int).map(TimeOfDay.init(minutes:)) ?? standard.dueTime
         sendsDailySummary = defaults?.object(forKey: Keys.summary) as? Bool ?? standard.sendsDailySummary
@@ -273,6 +276,7 @@ final class AppSettings {
         static let legacyFullWidth = "settings.fullWidth"
         static let spelling = "settings.spelling"
         static let dailyFolder = "settings.dailyNotesFolder"
+        static let enabled = "reminders.enabled"
         static let dueItems = "reminders.dueItems"
         static let dueTime = "reminders.dueTime"
         static let summary = "reminders.summary"

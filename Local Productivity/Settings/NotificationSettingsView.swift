@@ -16,16 +16,25 @@ struct NotificationSettingsView: View {
         @Bindable var settings = app.settings
         Form {
             Section {
-                PermissionRow(reminders: app.reminders)
-                LabeledContent("Next reminder") {
+                Toggle("Notifications", isOn: $settings.remindersEnabled)
+                if settings.remindersEnabled {
+                    PermissionRow(reminders: app.reminders)
+                    LabeledContent("Next reminder") {
                     if let next = app.reminders.plan.first {
                         Text("\(next.title) · \(UpcomingReminders.when(next.date))")
                             .lineLimit(1)
                     } else {
                         Text("None in the next 7 days")
                     }
+                    }
+                }
+            } footer: {
+                if !settings.remindersEnabled {
+                    Text("LP sends no reminders. Turn this on to choose what LP reminds you about.")
                 }
             }
+
+            Group {
 
             Section {
                 Toggle("Remind me when a task or card is due", isOn: $settings.remindsDueItems)
@@ -64,14 +73,18 @@ struct NotificationSettingsView: View {
             }
 
             Section {
-                UpcomingReminders(plan: app.reminders.plan, hasWorkspace: app.workspace != nil)
+                if settings.remindersEnabled {
+                    UpcomingReminders(plan: app.reminders.plan, hasWorkspace: app.workspace != nil)
+                } else {
+                    Text("Notifications are off.").foregroundStyle(.secondary)
+                }
             } header: {
                 Text("Coming Up")
             }
+            }
+            .disabled(!settings.remindersEnabled)
         }
         .formStyle(.grouped)
-        // Scrolls rather than growing past the height of a small screen.
-        .frame(height: 620)
         .task {
             await app.reminders.refreshPermission()
             app.updateReminders()
@@ -103,8 +116,8 @@ private struct PermissionRow: View {
     var body: some View {
         switch reminders.permission {
         case .allowed:
-            LabeledContent("Notifications") {
-                Label("On", systemImage: "checkmark.circle.fill")
+            LabeledContent("Allowed in macOS") {
+                Label("Yes", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Color.lpGood)
                     .labelStyle(.titleAndIcon)
             }
@@ -122,11 +135,11 @@ private struct PermissionRow: View {
             LabeledContent {
                 Button("Allow Notifications…") { Task { await reminders.requestPermission() } }
             } label: {
-                Text("Notifications")
+                Text("Allowed in macOS")
                 Text("LP needs your permission to show reminders.")
             }
         case .unknown:
-            LabeledContent("Notifications") { ProgressView().controlSize(.small) }
+            LabeledContent("Allowed in macOS") { ProgressView().controlSize(.small) }
         }
     }
 }

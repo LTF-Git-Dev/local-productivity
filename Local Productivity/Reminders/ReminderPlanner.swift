@@ -12,6 +12,8 @@ import Foundation
 
 /// What the person asked to be reminded about (Settings → Notifications).
 nonisolated struct ReminderSettings: Hashable, Sendable {
+    /// Settings → Notifications' switch: off, LP sends no reminders at all.
+    var isEnabled = true
     /// A reminder on the day a task or card is due.
     var remindsDueItems = true
     /// When items that name no time of their own are reminded about.
@@ -93,6 +95,7 @@ nonisolated enum ReminderPlanner {
     /// visible calendars.
     static func plan(tasks: [ReminderTask], events: [ReminderEvent], settings: ReminderSettings, now: Date,
                      workspace: String? = nil, calendar: Calendar = .current, limit: Int = systemLimit) -> [PlannedReminder] {
+        guard settings.isEnabled else { return [] }
         let horizon = now.addingTimeInterval(Double(horizonDays) * 86_400)
         var planned: [PlannedReminder] = []
 

@@ -639,7 +639,7 @@ enum SnapshotHarness {
             await settle()
         case "setting":
             // setting:size=17, setting:spacing=relaxed, setting:width=wide, setting:font=serif
-            // (or a family name), setting:interface=small.
+            // (or a family name), setting:interface=small, setting:notifications=off.
             let pair = argument.split(separator: "=", maxSplits: 1).map(String.init)
             let value = pair.count == 2 ? pair[1] : ""
             switch pair[0] {
@@ -647,6 +647,7 @@ enum SnapshotHarness {
             case "spacing": if let spacing = AppSettings.LineSpacing(rawValue: value) { app.settings.lineSpacing = spacing }
             case "width": if let width = AppSettings.PageWidth(rawValue: value) { app.settings.pageWidth = width }
             case "interface": if let size = AppSettings.InterfaceSize(rawValue: value) { app.settings.interfaceSize = size }
+            case "notifications": app.settings.remindersEnabled = value != "off"
             case "font":
                 if let font = AppSettings.EditorFont(rawValue: value) {
                     app.settings.editorFont = font

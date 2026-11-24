@@ -126,7 +126,12 @@ final class AppModel {
         // Snapshots and previews plan reminders but never hand them to the system.
         reminders = ReminderCenter(dryRun: defaults == nil)
 
-        settings.onRemindersChanged = { [weak self] in self?.scheduleGlanceUpdate() }
+        settings.onRemindersChanged = { [weak self] in
+            guard let self else { return }
+            // The switch acts at once — off must not wait for the debounce (LP may be quit in it).
+            if reminders.isOn != settings.remindersEnabled { reminders.setOn(settings.remindersEnabled) }
+            scheduleGlanceUpdate()
+        }
         calendarSync.onEventsChanged = { [weak self] in self?.scheduleGlanceUpdate() }
         reminders.onResponse = { [weak self] response in self?.handleReminder(response) }
 
@@ -278,6 +283,9 @@ final class AppModel {
     }
 
     func updateReminders() {
+        // Switched off: everything LP scheduled goes, workspace or not.
+        if reminders.isOn != settings.remindersEnabled { reminders.setOn(settings.remindersEnabled) }
+        guard settings.remindersEnabled else { return }
         // Until the pages have been read there is nothing to go on; planning now would only
         // take back reminders that are still right.
         guard let workspace, workspace.hasIndexed else { return }

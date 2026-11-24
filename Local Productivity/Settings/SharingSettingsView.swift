@@ -104,7 +104,6 @@ struct SharingSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minHeight: 320)
         .task {
             // Show who the saved token belongs to — unless it was replaced (or removed) while GitHub
             // answered: then the name is another connection's.

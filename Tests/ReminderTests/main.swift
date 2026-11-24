@@ -97,6 +97,8 @@ do {
     let after = ReminderPlanner.plan(tasks: [card], events: [], settings: settings, now: now, calendar: calendar).first { $0.title == "Ship it" }?.id
     check(before != nil && after != nil && before != after, "a card's reminder is new once its board has an ID")
 }
+check(ReminderPlanner.plan(tasks: tasks, events: events, settings: ReminderSettings(isEnabled: false), now: now, calendar: calendar).isEmpty,
+      "with Notifications switched off nothing is planned")
 check(planned("Standup")?.date == at("2026-11-18T09:50:00Z"), "an event is alerted ten minutes before")
 check(planned("Standup")?.subtitle == "10:00 – 10:15" && planned("Standup")?.body == "Room 2", "with its times and place")
 check(planned("Offsite") == nil, "all-day events have no alert")

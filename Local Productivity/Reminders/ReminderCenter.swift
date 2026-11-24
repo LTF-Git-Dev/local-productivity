@@ -126,11 +126,17 @@ final class ReminderCenter {
     /// new ones added; ones already waiting are left as they are.
     func update(with planned: [PlannedReminder]) {
         plan = planned
-        guard !isDryRun else { return }
-        updateTask?.cancel()
+        guard !isDryRun, isOn else { return }
+        // One change at a time: the previous update or cleanup finishes (an add in flight included) first.
+        let previous = updateTask
+        previous?.cancel()
         updateTask = Task {
+            await previous?.value
+            guard !Task.isCancelled, isOn else { return }
             let center = UNUserNotificationCenter.current()
             await refreshPermission()
+            guard !Task.isCancelled, isOn else { return }
+            // shortcut: a switch-off while macOS's first permission question is open waits for the answer; it's asked once.
             if permission == .notAsked, !planned.isEmpty {
                 // Asked for the first time when there is something to remind about.
                 _ = try? await center.requestAuthorization(options: [.alert, .sound])
@@ -155,13 +161,61 @@ final class ReminderCenter {
         }
     }
 
+    /// Settings → Notifications' switch, as last set. While off nothing is scheduled or snoozed.
+    private(set) var isOn = true
+
+    /// Turns LP's reminders on again (the next update plans them), or off: everything LP has
+    /// waiting with the system is cancelled — planned reminders and snoozes alike, whatever the
+    /// permission — and an update already under way is stopped first, so it can't bring them back.
+    /// Notifications already shown stay in Notification Center.
+    func setOn(_ on: Bool) {
+        isOn = on
+        guard !on else { return }
+        plan = []
+        guard !isDryRun else { return }
+        let previous = updateTask
+        previous?.cancel()
+        // Every pending notification LP has is a reminder or a snooze: all go — once now, and again
+        // after any add in flight, until macOS (which removes them in the background) shows none.
+        // Updates and snoozes queue behind this, so a plan made after switching back on survives.
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        updateTask = Task {
+            await previous?.value
+            // A separate task: a later update cancelling this one must not cut the cleanup short.
+            await Task {
+                let center = UNUserNotificationCenter.current()
+                // shortcut: gives up after ~2 s if macOS still lists some; the next switch-off or quit tries again.
+                for _ in 0..<40 {
+                    center.removeAllPendingNotificationRequests()
+                    if await center.pendingNotificationRequests().isEmpty { return }
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+            }.value
+        }
+    }
+
+    /// Waits for the change under way (used when quitting while switched off).
+    func settle() async {
+        // Until no newer change has replaced the one awaited.
+        while let task = updateTask {
+            await task.value
+            if updateTask == task { return }
+        }
+    }
+
     /// Shows the same reminder again later.
     func snooze(_ response: ReminderResponse, until date: Date) {
-        guard !isDryRun else { return }
+        guard !isDryRun, isOn else { return }
         let request = Self.request(id: ReminderIDs.snoozePrefix + UUID().uuidString, kind: response.kind,
                                    title: response.title, subtitle: response.subtitle, body: response.body,
                                    info: response.info, date: date)
-        Task { try? await UNUserNotificationCenter.current().add(request) }
+        // In the same queue as updates and switch-offs, so a switch-off's cleanup comes after it.
+        let previous = updateTask
+        updateTask = Task {
+            await previous?.value
+            guard isOn else { return }
+            try? await UNUserNotificationCenter.current().add(request)
+        }
     }
 
     private static func request(id: String, kind: PlannedReminder.Kind, title: String, subtitle: String, body: String,

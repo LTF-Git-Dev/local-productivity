@@ -41,7 +41,8 @@ struct SettingsView: View {
                 .tabItem { Label("Sharing", systemImage: "person.2") }
                 .tag(Tab.sharing.rawValue)
         }
-        .frame(width: 560)
+        // One size for every tab — fits small screens; longer tabs scroll inside it.
+        .frame(width: 560, height: 520)
         .preferredColorScheme(app.settings.appearance.colorScheme)
     }
 }
@@ -92,7 +93,6 @@ private struct GeneralSettings: View {
             ClaudeSettingsSection(workspaceFolder: app.workspace?.rootURL)
         }
         .formStyle(.grouped)
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -269,7 +269,6 @@ private struct EditorSettings: View {
             }
         }
         .formStyle(.grouped)
-        .fixedSize(horizontal: false, vertical: true)
         .task {
             // Hidden system families start with a dot.
             families = NSFontManager.shared.availableFontFamilies.filter { !$0.hasPrefix(".") }.sorted()
@@ -428,7 +427,6 @@ struct CalendarSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minHeight: 520)
     }
 
     @ViewBuilder
