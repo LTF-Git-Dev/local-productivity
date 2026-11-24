@@ -580,6 +580,55 @@ check(read("Locked.md") == "locked\n", "and keeps its text")
 chflags(root.appendingPathComponent("Locked.md").path, 0)
 check(tool("lp_replace_text", ["path": "Locked.md", "find": "locked", "replace_with": "open"]).error == false, "once unlocked, it can be")
 
+// MARK: Review fixes (Codex round 5)
+
+// Finder-hidden folders (no leading dot) are hidden too.
+write("Secret Stuff/Plan.md", "hidden plan\n")
+check(chflags(root.appendingPathComponent("Secret Stuff").path, UInt32(UF_HIDDEN)) == 0, "a folder was hidden in Finder")
+check(!(tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).contains { ($0["path"] as? String)?.hasPrefix("Secret Stuff") == true },
+      "it isn't listed")
+check(tool("lp_read_page", ["path": "Secret Stuff/Plan.md"]).text.contains("hidden"), "nor read by path")
+check(tool("lp_create_page", ["title": "x", "folder": "Secret Stuff"]).text.contains("hidden"), "nor written into")
+
+// What an edit keeps: flags, group and access lists.
+write("Kept.md", "kept\n")
+let keptPath = root.appendingPathComponent("Kept.md").path
+check(chflags(keptPath, UInt32(UF_NODUMP)) == 0, "a flag was set")
+let everyone: gid_t = 12   // "everyone": a group every Mac user belongs to
+check(chown(keptPath, uid_t.max, everyone) == 0, "the group was changed")
+let aclSet = Process()
+aclSet.executableURL = URL(fileURLWithPath: "/bin/chmod")
+aclSet.arguments = ["+a", "everyone allow readattr", keptPath]
+try! aclSet.run(); aclSet.waitUntilExit()
+func aclText(_ path: String) -> String? {
+    guard let acl = acl_get_file(path, ACL_TYPE_EXTENDED), let text = acl_to_text(acl, nil) else { return nil }
+    defer { acl_free(UnsafeMutableRawPointer(acl)); acl_free(UnsafeMutableRawPointer(text)) }
+    return String(cString: text)
+}
+let aclBefore = aclText(keptPath)
+check(aclBefore != nil, "an access list was set")
+check(!tool("lp_append_to_page", ["path": "Kept.md", "content": "more"]).error, "the page is edited")
+var keptInfo = stat()
+stat(keptPath, &keptInfo)
+check(keptInfo.st_flags & UInt32(UF_NODUMP) != 0, "the flag is kept")
+check(keptInfo.st_gid == everyone, "the group is kept")
+check(aclText(keptPath) == aclBefore, "the access list is kept")
+check(read("Kept.md") == "kept\n\nmore\n", "and the text changed")
+
+// A page protected against being replaced is left alone, and so is nothing else.
+write("Guarded.md", "guarded\n")
+let guardACL = Process()
+guardACL.executableURL = URL(fileURLWithPath: "/bin/chmod")
+guardACL.arguments = ["+a", "everyone deny delete", root.appendingPathComponent("Guarded.md").path]
+try! guardACL.run(); guardACL.waitUntilExit()
+check(tool("lp_append_to_page", ["path": "Guarded.md", "content": "x"]).text.contains("protected"), "a page whose access list forbids replacing it is refused")
+check(read("Guarded.md") == "guarded\n", "and keeps its text")
+check(!allFiles().contains { ($0 as NSString).lastPathComponent.hasPrefix(".lp-mcp-") }, "and no temporary file is left behind")
+let guardOff = Process()
+guardOff.executableURL = URL(fileURLWithPath: "/bin/chmod")
+guardOff.arguments = ["-a", "everyone deny delete", root.appendingPathComponent("Guarded.md").path]
+try! guardOff.run(); guardOff.waitUntilExit()
+
 // MARK: Nothing is ever deleted
 
 let before = allFiles()

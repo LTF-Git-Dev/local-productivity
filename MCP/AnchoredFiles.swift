@@ -54,6 +54,11 @@ nonisolated final class AnchoredFiles {
                 default: throw VaultError("The folder “\(path)” can’t be opened (\(String(cString: strerror(code)))).")
                 }
             }
+            var info = stat()
+            if fstat(next, &info) != 0 || info.st_flags & UInt32(UF_HIDDEN) != 0 {
+                close(next)
+                throw VaultError("“\(path)” is in a hidden folder, which LP doesn’t use for pages.")
+            }
             fd = next
         }
         return fd
@@ -73,6 +78,10 @@ nonisolated final class AnchoredFiles {
         guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
             close(fd)
             throw VaultError("“\(path)” isn’t a regular file, so it isn’t used.")
+        }
+        guard info.st_flags & UInt32(UF_HIDDEN) == 0 else {
+            close(fd)
+            throw VaultError("“\(path)” is hidden, so it isn’t used.")
         }
         return (fd, info)
     }
@@ -168,7 +177,7 @@ nonisolated final class AnchoredFiles {
             throw VaultError("The page couldn’t be written (\(String(cString: strerror(errno)))).")
         }
         var swapped = false
-        defer { if !swapped { unlinkat(folderFD, temporary, 0) } }
+        defer { if !swapped { Self.remove(temporary, in: folderFD) } }
         do {
             try Self.writeAll(fd, data)
             // Keep what the old file carried besides its text: Finder tags and other extended
@@ -177,6 +186,14 @@ nonisolated final class AnchoredFiles {
             guard fcopyfile(originalFD, fd, nil, copyfile_flags_t(COPYFILE_XATTR | COPYFILE_ACL)) == 0,
                   fchmod(fd, original.st_mode & 0o7777) == 0 else {
                 throw VaultError("“\(path)” couldn’t keep its Finder tags or permissions, so it wasn’t changed.")
+            }
+            // Owner and group (so the same people can read it), and the file's flags.
+            guard fchown(fd, original.st_uid, original.st_gid) == 0 else {
+                throw VaultError("“\(path)” belongs to another user or group this Mac won’t give it to, so it wasn’t changed.")
+            }
+            let keptFlags = original.st_flags & UInt32(UF_SETTABLE) & ~UInt32(UF_COMPRESSED | UF_TRACKED)
+            guard keptFlags == 0 || fchflags(fd, keptFlags) == 0 else {
+                throw VaultError("“\(path)” couldn’t keep its file flags, so it wasn’t changed.")
             }
             // The creation date too, where the disk keeps one.
             var created = original.st_birthtimespec
@@ -194,8 +211,11 @@ nonisolated final class AnchoredFiles {
         }
 
         guard renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_SWAP)) == 0 else {
-            if errno == ENOENT { throw VaultError("“\(path)” was removed meanwhile, so it wasn’t written again.") }
-            throw VaultError("The page couldn’t be replaced (\(String(cString: strerror(errno)))).")
+            switch errno {
+            case ENOENT: throw VaultError("“\(path)” was removed meanwhile, so it wasn’t written again.")
+            case EACCES, EPERM: throw VaultError("“\(path)” is protected (its permissions don’t allow replacing it), so it wasn’t changed.")
+            default: throw VaultError("The page couldn’t be replaced (\(String(cString: strerror(errno)))).")
+            }
         }
         swapped = true
         // `temporary` now holds what was there a moment ago. Unless it is exactly what was read —
@@ -204,7 +224,7 @@ nonisolated final class AnchoredFiles {
         let limit = max(expected.count, data.count) + 1
         if let displaced = try? read(hiddenPath, limit: limit), displaced == expected,
            metadataUnchanged(folderFD, temporary, since: before) {
-            unlinkat(folderFD, temporary, 0)
+            Self.remove(temporary, in: folderFD)
             return .done
         }
         // Someone saved in between: put their version back.
@@ -212,7 +232,7 @@ nonisolated final class AnchoredFiles {
             throw VaultError("“\(path)” changed while it was being written. One version is in the page, the other kept, hidden, as “\(hiddenPath)”.")
         }
         if let returned = try? read(hiddenPath, limit: limit), returned == data {
-            unlinkat(folderFD, temporary, 0)
+            Self.remove(temporary, in: folderFD)
             return .changedMeanwhile
         }
         // Yet another save landed in between: keep it next to the page under a visible name —
@@ -230,7 +250,10 @@ nonisolated final class AnchoredFiles {
     /// extended attributes (Finder tags among them).
     struct Metadata: Equatable {
         var mode: mode_t
+        var owner: uid_t
+        var group: gid_t
         var flags: UInt32
+        var acl: String?
         var attributes: [String: Data]
     }
 
@@ -250,7 +273,13 @@ nonisolated final class AnchoredFiles {
                 attributes[name] = Data(value)
             }
         }
-        return Metadata(mode: info.st_mode & 0o7777, flags: info.st_flags, attributes: attributes)
+        var aclText: String?
+        if let acl = acl_get_fd_np(fd, ACL_TYPE_EXTENDED) {
+            if let text = acl_to_text(acl, nil) { aclText = String(cString: text); acl_free(UnsafeMutableRawPointer(text)) }
+            acl_free(UnsafeMutableRawPointer(acl))
+        }
+        return Metadata(mode: info.st_mode & 0o7777, owner: info.st_uid, group: info.st_gid, flags: info.st_flags,
+                        acl: aclText, attributes: attributes)
     }
 
     /// Whether the file swapped out still carries what the original had when it was read.
@@ -260,6 +289,18 @@ nonisolated final class AnchoredFiles {
         guard fd >= 0 else { return false }
         defer { close(fd) }
         return Self.metadata(fd) == before
+    }
+
+    /// Removes one of this server's own temporary files — after taking off the access list and
+    /// flags it copied from the page, which could otherwise forbid removing it.
+    private static func remove(_ name: String, in folderFD: Int32) {
+        let fd = openat(folderFD, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        if fd >= 0 {
+            if let empty = acl_init(0) { _ = acl_set_fd_np(fd, empty, ACL_TYPE_EXTENDED); acl_free(UnsafeMutableRawPointer(empty)) }
+            _ = fchflags(fd, 0)
+            close(fd)
+        }
+        unlinkat(folderFD, name, 0)
     }
 
     // MARK: - Listing
@@ -276,6 +317,7 @@ nonisolated final class AnchoredFiles {
             guard depth < 64, let directory = fdopendir(fd) else { close(fd); complete = false; return }
             defer { closedir(directory) }
             var names: [String] = []
+            var read = 0
             while true {
                 errno = 0
                 guard let entry = readdir(directory) else {
@@ -283,13 +325,15 @@ nonisolated final class AnchoredFiles {
                     break
                 }
                 let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
+                read += 1
                 if !name.hasPrefix(".") { names.append(name) }
                 // shortcut: a folder this large isn't a notes folder; list what was found and say it's incomplete.
-                if names.count >= Self.maxEntriesPerFolder { complete = false; break }
+                if read >= Self.maxEntriesPerFolder { complete = false; break }
             }
             for name in names.sorted() where !stopped {
                 var info = stat()
                 guard fstatat(dirfd(directory), name, &info, AT_SYMLINK_NOFOLLOW) == 0 else { complete = false; continue }
+                if info.st_flags & UInt32(UF_HIDDEN) != 0 { continue }   // hidden in Finder: skipped, like a dot name
                 let path = prefix.isEmpty ? name : prefix + "/" + name
                 switch info.st_mode & S_IFMT {
                 case S_IFREG:
