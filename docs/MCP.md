@@ -52,6 +52,19 @@ today's standup notes in my daily note"*, *"Move the press release card to Revie
   the three that can replace text (`lp_update_page`, `lp_replace_text`, `lp_update_card`) are
   marked destructive.
 
+## Known limits
+
+- A program that writes into a page it opened earlier, in place (for example Vim with
+  `backupcopy=yes`), at the very moment Claude saves the same page, can lose that write. LP and
+  Obsidian save whole files and aren't affected.
+- A page with a second hard link: an edit gives the page a new file, so the other link keeps the
+  old text.
+- Deliberate tampering by another program running on this Mac — swapping file names in the
+  microseconds between the server's checks — isn't defended against beyond the checks above;
+  such a program could change your files directly anyway.
+- A page that can't be replaced (read-only, locked, or protected by its access list) is refused
+  rather than changed.
+
 ## Connect it
 
 Build it (once, and after each update of LP's code):

@@ -7,8 +7,8 @@
 //  service, another person's Mac, or anything else) can't carry a read or write outside it.
 //  Only regular files are read, never more than a limit. A file is replaced by writing the new
 //  version beside it and swapping the two in one step, then checking what was swapped out: if
-//  someone else had saved in between, their version is swapped back and nothing of theirs is
-//  lost. Nothing here ever deletes a page.
+//  someone else had saved in between, their version is swapped back and the edit is redone on top.
+//  Nothing here ever deletes a page. Known limits are listed in docs/MCP.md.
 //
 
 import Darwin
@@ -187,9 +187,10 @@ nonisolated final class AnchoredFiles {
             throw VaultError("The page couldn’t be written (\(String(cString: strerror(errno)))).")
         }
         var ours = stat()
-        guard fstat(fd, &ours) == 0 else { close(fd); close(originalFD); throw VaultError("The page couldn’t be written.") }
-        var swapped = false
-        defer { if !swapped { Self.remove(temporary, in: folderFD) } }
+        guard fstat(fd, &ours) == 0 else {
+            close(fd); close(originalFD)
+            throw Self.cleanUp(temporary, in: folderFD, folder: folder, "The page couldn’t be written.")
+        }
         do {
             try Self.writeAll(fd, data)
             // Keep what the old file carried besides its text: Finder tags and other extended
@@ -222,17 +223,18 @@ nonisolated final class AnchoredFiles {
         } catch {
             close(fd)
             close(originalFD)
-            throw error
+            throw Self.cleanUp(temporary, in: folderFD, folder: folder, "\(error)")
         }
 
         guard renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_SWAP)) == 0 else {
+            let message: String
             switch errno {
-            case ENOENT: throw VaultError("“\(path)” was removed meanwhile, so it wasn’t written again.")
-            case EACCES, EPERM: throw VaultError("“\(path)” is protected (its permissions don’t allow replacing it), so it wasn’t changed.")
-            default: throw VaultError("The page couldn’t be replaced (\(String(cString: strerror(errno)))).")
+            case ENOENT: message = "“\(path)” was removed meanwhile, so it wasn’t written again."
+            case EACCES, EPERM: message = "“\(path)” is protected (its permissions don’t allow replacing it), so it wasn’t changed."
+            default: message = "The page couldn’t be replaced (\(String(cString: strerror(errno))))."
             }
+            throw Self.cleanUp(temporary, in: folderFD, folder: folder, message)
         }
-        swapped = true
         // `temporary` now holds what was there a moment ago. Unless it is exactly what was read —
         // and could be read back to check — it is someone else's save.
         let hiddenPath = folder.isEmpty ? temporary : folder + "/" + temporary
@@ -269,15 +271,21 @@ nonisolated final class AnchoredFiles {
 
     /// Whether a file or folder is hidden in Finder: the hidden flag, or the older "invisible" bit
     /// in its Finder information.
-    /// When the Finder information can't be read (not merely absent), the item counts as hidden.
-    static func isHidden(_ fd: Int32, flags: UInt32) -> Bool {
-        if flags & UInt32(UF_HIDDEN) != 0 { return true }
+    enum Visibility { case visible, hidden, unknown }
+
+    /// Finder's view of a file or folder. Finder information that's absent, or a disk that has
+    /// none, means visible; one that can't be read means unknown (treated as hidden, and a scan
+    /// that meets it is incomplete).
+    static func visibility(_ fd: Int32, flags: UInt32) -> Visibility {
+        if flags & UInt32(UF_HIDDEN) != 0 { return .hidden }
         var info = [UInt8](repeating: 0, count: 32)
         let size = fgetxattr(fd, "com.apple.FinderInfo", &info, 32, 0, 0)
-        if size < 0 { return errno != ENOATTR }
-        guard size >= 10 else { return false }
-        return info[8] & 0x40 != 0   // kIsInvisible (0x4000) in the big-endian flags at offset 8
+        if size < 0 { return errno == ENOATTR || errno == ENOTSUP ? .visible : .unknown }
+        guard size >= 10 else { return .visible }
+        return info[8] & 0x40 != 0 ? .hidden : .visible   // kIsInvisible (0x4000) in the big-endian flags at offset 8
     }
+
+    static func isHidden(_ fd: Int32, flags: UInt32) -> Bool { visibility(fd, flags: flags) != .visible }
 
     /// What a file carries besides its text that an edit must keep: permissions, flags and
     /// extended attributes (Finder tags among them).
@@ -376,16 +384,19 @@ nonisolated final class AnchoredFiles {
                     guard wants(name) else { continue }   // only the files asked for are ever opened
                     let file = openat(dirfd(directory), name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
                     guard file >= 0 else { complete = false; continue }
-                    let invisible = Self.isHidden(file, flags: info.st_flags)
+                    let seen = Self.visibility(file, flags: info.st_flags)
                     close(file)
-                    if invisible { continue }
+                    if seen == .unknown { complete = false }
+                    if seen != .visible { continue }
                     let modified = Date(timeIntervalSince1970: Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9)
                     if !visit(path, modified) { stopped = true }
                 case S_IFDIR:
                     guard name != "node_modules", !Self.packageExtensions.contains((name as NSString).pathExtension.lowercased()) else { continue }
                     let child = openat(dirfd(directory), name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
                     if child < 0 { complete = false; continue }
-                    if Self.isHidden(child, flags: info.st_flags) { close(child); continue }
+                    let seen = Self.visibility(child, flags: info.st_flags)
+                    if seen == .unknown { complete = false }
+                    if seen != .visible { close(child); continue }
                     visitFolder(child, path, depth: depth + 1)
                 default:
                     continue   // links, pipes, devices: never pages, never followed

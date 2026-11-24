@@ -664,6 +664,22 @@ let photoNote = tool("lp_daily_note", ["date": "2026-12-24"])
 check(!photoNote.error && photoNote.json["created"] as? Bool == true, "and doesn't block a daily note: \(photoNote.text.prefix(120))")
 chmod(root.appendingPathComponent("Attachments/photo.jpg").path, 0o644)
 
+// MARK: Review fixes (Codex round 8)
+
+// A folder whose Finder information can't be read: skipped, and the scan says it's incomplete.
+write("Guarded Folder/2026-12-31.md", "the note\n")
+let guardFolder = Process()
+guardFolder.executableURL = URL(fileURLWithPath: "/bin/chmod")
+guardFolder.arguments = ["+a", "everyone deny readextattr", root.appendingPathComponent("Guarded Folder").path]
+try! guardFolder.run(); guardFolder.waitUntilExit()
+check(tool("lp_list_pages").json["incomplete"] as? Bool == true, "an uninspectable folder makes the scan incomplete")
+check(tool("lp_daily_note", ["date": "2026-12-31"]).text.contains("couldn’t be scanned"), "so its note isn't created twice")
+let unguard = Process()
+unguard.executableURL = URL(fileURLWithPath: "/bin/chmod")
+unguard.arguments = ["-a", "everyone deny readextattr", root.appendingPathComponent("Guarded Folder").path]
+try! unguard.run(); unguard.waitUntilExit()
+check(tool("lp_daily_note", ["date": "2026-12-31"]).json["path"] as? String == "Guarded Folder/2026-12-31.md", "once readable, it's found")
+
 // MARK: Nothing is ever deleted
 
 let before = allFiles()
