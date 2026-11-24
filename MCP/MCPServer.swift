@@ -16,11 +16,38 @@ nonisolated final class MCPServer {
     /// Newest first; a client asking for one of these gets it, any other gets the newest.
     static let protocolVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
-    let vault: LPVault
+    /// The workspaces this server may use, as set up when it was installed (`--workspace`, one or
+    /// more). Claude can reach nothing else.
+    struct AllowedWorkspace {
+        let name: String
+        let vault: LPVault
+    }
+    let workspaces: [AllowedWorkspace]
+    /// The workspace — and folder inside it — the person chose for this session. Every tool but
+    /// the two below refuses until there is one.
+    private(set) var vault: LPVault?
+    private(set) var scope: (workspace: String, folder: String)?
     /// What "today" means for daily notes and due dates; replaceable in tests.
     var today: () -> Day = { .today }
 
-    init(vault: LPVault) { self.vault = vault }
+    init(workspaces roots: [URL]) throws {
+        guard !roots.isEmpty else { throw VaultError("No workspace was given: lp-mcp --workspace <folder> [--workspace <folder> …]") }
+        var allowed: [AllowedWorkspace] = []
+        for root in roots {
+            let vault = try LPVault(root: root)
+            guard !allowed.contains(where: { $0.vault.root == vault.root }) else { continue }
+            var name = vault.root.lastPathComponent, counter = 2
+            while allowed.contains(where: { $0.name.lowercased() == name.lowercased() }) { name = "\(vault.root.lastPathComponent) \(counter)"; counter += 1 }
+            allowed.append(AllowedWorkspace(name: name, vault: vault))
+        }
+        workspaces = allowed
+    }
+
+    static let chooseFirst = """
+    No workspace has been chosen for this session. Ask the person which LP workspace — and, if they \
+    like, which folder inside it — you may use (lp_list_workspaces shows the ones allowed), then call \
+    lp_use_workspace with exactly what they said. Never choose one yourself.
+    """
 
     // MARK: - Messages
 
@@ -177,6 +204,35 @@ nonisolated final class MCPServer {
     // MARK: - Tools
 
     func call(_ name: String, _ a: Arguments) throws -> String {
+        switch name {
+        case "lp_list_workspaces":
+            return Self.json([
+                "chosen": scope.map { chosen -> Any in
+                    ["workspace": chosen.workspace, "folder": chosen.folder.isEmpty ? NSNull() : chosen.folder as Any]
+                } ?? NSNull(),
+                "workspaces": workspaces.map { workspace -> [String: Any] in
+                    ["name": workspace.name, "path": workspace.vault.root.path,
+                     "folders": (try? workspace.vault.files.subfolders("")) ?? []]
+                },
+                "note": "Ask the person which workspace (and optionally which folder) to use before calling lp_use_workspace.",
+            ])
+
+        case "lp_use_workspace":
+            let wanted = try a.string("workspace")
+            guard let workspace = workspaces.first(where: { $0.name.lowercased() == wanted.trimmingCharacters(in: .whitespaces).lowercased() }) else {
+                throw VaultError("“\(wanted)” isn’t an allowed workspace. Allowed: \(workspaces.map { "“\($0.name)”" }.joined(separator: ", ")).")
+            }
+            let folder = try workspace.vault.folder(try a.optionalString("folder") ?? "")
+            close(try workspace.vault.files.openFolder(folder))   // there, reachable without a link, not hidden
+            vault = folder.isEmpty ? workspace.vault : try LPVault(root: workspace.vault.root.appendingPathComponent(folder))
+            scope = (workspace.name, folder)
+            return Self.json(["using": ["workspace": workspace.name, "folder": folder.isEmpty ? NSNull() : folder as Any],
+                              "note": folder.isEmpty ? "Paths are now relative to the workspace."
+                                  : "Only “\(folder)” and what's inside it can be used now; paths are relative to it."])
+        default:
+            break
+        }
+        guard let vault else { throw VaultError(Self.chooseFirst) }
         switch name {
         case "lp_list_pages":
             let pages = try vault.pages(in: try a.optionalString("folder") ?? "")
@@ -341,6 +397,9 @@ nonisolated final class MCPServer {
 
     static let instructions = """
     LP is a Mac app whose notes, tasks and Kanban boards are plain Markdown files in one folder (the workspace). \
+    Before reading or changing anything, ASK THE PERSON which workspace — and, if they want, which folder in it — \
+    you may use: show them the choices from lp_list_workspaces, then call lp_use_workspace with their answer. \
+    Never pick a workspace or folder yourself, and ask again before switching to another one. \
     These tools read and change those files directly, the way LP does; LP shows the changes when it's open. \
     Paths are relative to the workspace. Nothing can be deleted. Boards are changed card by card \
     (lp_add_card, lp_update_card) so they stay valid; pages with lp_append_to_page, lp_replace_text or lp_update_page. \
@@ -348,6 +407,14 @@ nonisolated final class MCPServer {
     """
 
     static let tools: [Tool] = [
+        Tool(name: "lp_list_workspaces", title: "List workspaces",
+             description: "Lists the LP workspaces this server may use (and the folders at the top of each), and which one is chosen for this session. Show these to the person and ask which to use.",
+             properties: [:], required: [], readOnly: true, idempotent: true),
+        Tool(name: "lp_use_workspace", title: "Use a workspace",
+             description: "Chooses the workspace — and optionally one folder inside it — for this session. Call it only with what the person chose; never choose yourself. Every other tool works only after this, and only inside the chosen workspace or folder; paths are then relative to it.",
+             properties: ["workspace": text("The workspace's name, as lp_list_workspaces shows it."),
+                          "folder": text("Optional: one folder inside it to limit everything to, e.g. \"Projects\".")],
+             required: ["workspace"], readOnly: false, idempotent: true),
         Tool(name: "lp_list_pages", title: "List pages",
              description: "Lists every page and board in the workspace (or one folder), with its kind and when it last changed.",
              properties: ["folder": text("Only this folder and its subfolders, e.g. \"Projects\". Default: everything.")],

@@ -25,6 +25,10 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
     tasks with no tool errors, and LP showed the changes live.
   - `SafeFileWriter` and the page-naming rules moved to `Workspace/Safety.swift` so the app and the
     server share them; LP's behaviour is unchanged.
+  - At the owner's request, **Claude asks first**: the server is given the workspaces it may use
+    (`--workspace`, one or more); every tool refuses until the person has chosen one — and
+    optionally a folder in it, which then confines everything — through `lp_list_workspaces` and
+    `lp_use_workspace`. A real Claude Code session asked which workspace to use instead of choosing.
 - 2026-11-24 — **First-open help and a Download button**, after the owner saw macOS's "could not
   verify LP is free of malware" on 1.0.1 (LP is ad-hoc signed, not notarized). Branch
   `docs/first-open-gatekeeper`; website published, app unchanged. The website's Get LP section now

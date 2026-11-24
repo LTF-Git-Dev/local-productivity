@@ -31,7 +31,10 @@ func write(_ path: String, _ text: String) {
 func read(_ path: String) -> String? { try? String(contentsOf: root.appendingPathComponent(path), encoding: .utf8) }
 func exists(_ path: String) -> Bool { fm.fileExists(atPath: root.appendingPathComponent(path).path) }
 
-let server = MCPServer(vault: try! LPVault(root: root))
+let second = fm.temporaryDirectory.appendingPathComponent("lp-mcp-second-\(UUID().uuidString)")
+try! fm.createDirectory(at: second.appendingPathComponent("Journal"), withIntermediateDirectories: true)
+defer { try? fm.removeItem(at: second) }
+let server = try! MCPServer(workspaces: [root, second])
 server.today = { Day(year: 2026, month: 11, day: 24) }
 var nextID = 100
 
@@ -94,7 +97,7 @@ check(((badVersion?["error"] as? [String: Any])?["code"] as? Int) == -32600, "no
 check(((send("tools/call", ["name": "lp_nope"])?["error"] as? [String: Any])?["code"] as? Int) == -32602, "unknown tool: -32602")
 
 let tools = (send("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]] ?? []
-check(tools.count == 15, "15 tools: \(tools.count)")
+check(tools.count == 17, "17 tools: \(tools.count)")
 for item in tools {
     let schema = item["inputSchema"] as? [String: Any]
     let name = item["name"] as? String ?? "?"
@@ -109,8 +112,25 @@ for item in tools {
     check(name.hasPrefix("lp_"), "\(name) is prefixed")
 }
 let readOnly = Set(tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true }.compactMap { $0["name"] as? String })
-check(readOnly == ["lp_list_pages", "lp_search", "lp_read_page", "lp_list_tasks", "lp_list_boards", "lp_read_board"],
-      "exactly the six reading tools are read-only: \(readOnly.sorted())")
+check(readOnly == ["lp_list_workspaces", "lp_list_pages", "lp_search", "lp_read_page", "lp_list_tasks", "lp_list_boards", "lp_read_board"],
+      "exactly the seven reading tools are read-only: \(readOnly.sorted())")
+
+// MARK: Choosing a workspace first
+
+check(tool("lp_list_pages").text.contains("Ask the person"), "nothing works before a workspace is chosen")
+check(tool("lp_daily_note").text.contains("Ask the person"), "nothing is written either")
+check(!exists("2026-11-24.md"), "and no note was made")
+let allowed = tool("lp_list_workspaces").json
+let allowedNames = (allowed["workspaces"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+check(allowedNames == [root.lastPathComponent, second.lastPathComponent], "both allowed workspaces are listed: \(allowedNames)")
+check(allowed["chosen"] is NSNull, "none chosen yet")
+check(((allowed["workspaces"] as? [[String: Any]])?.last?["folders"] as? [String]) == ["Journal"], "with their top folders")
+check(tool("lp_use_workspace", ["workspace": "Elsewhere"]).text.contains("isn’t an allowed workspace"), "only allowed workspaces can be chosen")
+check(tool("lp_use_workspace", ["workspace": second.lastPathComponent, "folder": "Missing"]).error, "a missing folder can't be chosen")
+check(tool("lp_use_workspace", ["workspace": second.lastPathComponent, "folder": "../"]).error, "nor one above the workspace")
+let chosen = tool("lp_use_workspace", ["workspace": root.lastPathComponent])
+check(!chosen.error, "the person's choice is used: \(chosen.text)")
+check(((tool("lp_list_workspaces").json["chosen"] as? [String: Any])?["workspace"] as? String) == root.lastPathComponent, "and reported as chosen")
 
 // Wrong argument types are explained, not crashes.
 check(tool("lp_read_page", [:]).error, "a missing argument is an error")
@@ -473,10 +493,10 @@ check(read("Reports.md") == "- [x] Send report 📅 2026-11-30\n- [x] Send repor
 
 // A save that lands between reading and writing is never lost: the swap puts it back.
 write("Race.md", "theirs, saved meanwhile\n")
-let raced = try! server.vault.files.replace("Race.md", with: Data("ours\n".utf8), expected: Data("what we read\n".utf8))
+let raced = try! server.vault!.files.replace("Race.md", with: Data("ours\n".utf8), expected: Data("what we read\n".utf8))
 check(raced == .changedMeanwhile, "a replace over a file that changed reports it")
 check(read("Race.md") == "theirs, saved meanwhile\n", "and their save stands: \(read("Race.md") ?? "")")
-let clean = try! server.vault.files.replace("Race.md", with: Data("ours\n".utf8), expected: Data("theirs, saved meanwhile\n".utf8))
+let clean = try! server.vault!.files.replace("Race.md", with: Data("ours\n".utf8), expected: Data("theirs, saved meanwhile\n".utf8))
 check(clean == .done && read("Race.md") == "ours\n", "over the version it read, it's replaced")
 check(!allFiles().contains { ($0 as NSString).lastPathComponent.hasPrefix(".lp-mcp-") }, "no temporary files are left behind")
 
@@ -690,6 +710,20 @@ check(tool("lp_add_card", ["board": "Projects/Launch.md", "revision": oldBoard, 
       "an old revision is refused, so a replaced board can't get the card")
 check(tool("lp_search", ["query": "the"]).json["incomplete"] as? Bool == true, "search says it's incomplete when a page couldn't be read (Latin.md)")
 check(tool("lp_list_tasks").json["incomplete"] as? Bool == true, "and so do tasks")
+
+// MARK: A folder chosen inside a workspace
+
+check(!tool("lp_use_workspace", ["workspace": root.lastPathComponent, "folder": "Projects"]).error, "a folder is chosen")
+let scoped = (tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }
+check(!scoped.isEmpty && scoped.allSatisfy { !$0.hasPrefix("Projects/") } && scoped.contains("Website Redesign.md"),
+      "only its pages are listed, relative to it: \(scoped.prefix(4))")
+check(tool("lp_read_page", ["path": "../Welcome.md"]).error, "nothing outside it can be read")
+check(tool("lp_create_page", ["title": "Scoped"]).json["created"] as? String == "Scoped.md", "new pages go inside it")
+check(exists("Projects/Scoped.md") && !exists("Scoped.md"), "really inside it")
+check(tool("lp_use_workspace", ["workspace": root.lastPathComponent, "folder": ".lp"]).error, "a hidden folder can't be chosen")
+check(!tool("lp_use_workspace", ["workspace": second.lastPathComponent]).error, "another workspace can be chosen")
+check((tool("lp_list_pages").json["pages"] as? [Any])?.isEmpty == true, "and only its pages are seen")
+check(!tool("lp_use_workspace", ["workspace": root.lastPathComponent]).error, "and back to the first")
 
 // MARK: Nothing is ever deleted
 

@@ -348,6 +348,26 @@ nonisolated final class AnchoredFiles {
 
     // MARK: - Listing
 
+    /// The visible folders directly inside `folder` (no hidden ones, links or packages), by name.
+    func subfolders(_ folder: String) throws -> [String] {
+        guard let directory = fdopendir(try openFolder(folder)) else { return [] }
+        defer { closedir(directory) }
+        var names: [String] = []
+        while let entry = readdir(directory), names.count < 500 {
+            let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
+            guard !name.hasPrefix("."), !Self.packageExtensions.contains((name as NSString).pathExtension.lowercased()) else { continue }
+            var info = stat()
+            guard fstatat(dirfd(directory), name, &info, AT_SYMLINK_NOFOLLOW) == 0, info.st_mode & S_IFMT == S_IFDIR,
+                  name != "node_modules" else { continue }
+            let child = openat(dirfd(directory), name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard child >= 0 else { continue }
+            let visible = Self.visibility(child, flags: info.st_flags) == .visible
+            close(child)
+            if visible { names.append(name) }
+        }
+        return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     /// Every regular file under `folder`, walked from the workspace folder itself: hidden names,
     /// links, packages and `node_modules` are skipped and never followed. `visit` gets each
     /// file's path and modification date and returns false to stop. Returns false when part of

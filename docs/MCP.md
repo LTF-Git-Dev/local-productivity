@@ -8,10 +8,22 @@ to be open; when it is, it shows Claude's changes as they happen.
 It runs on your Mac only. Nothing goes to LP's makers; what Claude reads goes to Claude, as with
 anything you share in a conversation.
 
+## Claude asks first
+
+You give `lp-mcp` the workspaces Claude may ever use (one or more `--workspace` folders). In each
+conversation, **before reading or changing anything, Claude asks you which workspace — and, if you
+like, which folder inside it — to work on**, then chooses exactly that with `lp_use_workspace`
+(Claude Code shows you that call to approve). Until then every other tool refuses. With a folder
+chosen, nothing outside it can be read or changed; ask Claude to switch and it asks again.
+
+Tip: when Claude Code asks to approve `lp_use_workspace`, choose **Yes** (once), not "always", so you
+see every choice.
+
 ## What Claude can do
 
 | Read | Write | Update |
 |---|---|---|
+| `lp_list_workspaces` — the workspaces allowed, and their folders | `lp_use_workspace` — the workspace (and folder) you chose | |
 | `lp_list_pages` — every page and board | `lp_create_page` — a new page (never replaces one) | `lp_replace_text` — change one exact passage of a page |
 | `lp_search` — by name and text, like ⌘K | `lp_append_to_page` — add to the end of a page | `lp_update_page` — rewrite a page (only the version it read) |
 | `lp_read_page` — a page's Markdown | `lp_daily_note` — today's (or any day's) note, created if needed | `lp_set_task_done` — tick a task off or reopen it |
@@ -77,7 +89,8 @@ mkdir -p ~/.local/bin && cp .build/lp-mcp ~/.local/bin/lp-mcp
 **Claude Code** — for every project (`--scope user`):
 
 ```sh
-claude mcp add --scope user lp -- ~/.local/bin/lp-mcp --workspace "/path/to/your LP folder"
+claude mcp add --scope user lp -- ~/.local/bin/lp-mcp \
+  --workspace "/path/to/your LP folder" --workspace "/path/to/another one"
 claude mcp list                       # lp: ✓ Connected
 ```
 
@@ -89,7 +102,7 @@ claude mcp list                       # lp: ✓ Connected
   "mcpServers": {
     "lp": {
       "command": "/Users/<you>/.local/bin/lp-mcp",
-      "args": ["--workspace", "/path/to/your LP folder"]
+      "args": ["--workspace", "/path/to/your LP folder", "--workspace", "/path/to/another one"]
     }
   }
 }
