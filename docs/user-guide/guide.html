@@ -149,7 +149,7 @@
     <li data-toc="9"><span class="n">9</span><span class="t">Widgets</span><span class="d">Today and Board on your desktop</span><span class="p">00</span></li>
     <li data-toc="10"><span class="n">10</span><span class="t">Settings</span><span class="d">Make LP yours</span><span class="p">00</span></li>
     <li data-toc="11"><span class="n">11</span><span class="t">Keyboard shortcuts</span><span class="d">Everything at your fingertips</span><span class="p">00</span></li>
-    <li data-toc="12"><span class="n">12</span><span class="t">Your files, safety and updates</span><span class="d">How LP saves, Obsidian, going back a version</span><span class="p">00</span></li>
+    <li data-toc="12"><span class="n">12</span><span class="t">Your files, safety and updates</span><span class="d">How LP saves, going back a version, LP with Claude</span><span class="p">00</span></li>
     <li data-toc="13"><span class="n">13</span><span class="t">Questions and troubleshooting</span><span class="d">When something doesn't look right</span><span class="p">00</span></li>
   </ol>
 </section>
@@ -611,6 +611,13 @@
     <li>Download the earlier version's zip from the Releases page, unpack it, and replace LP in Applications.</li>
     <li>Open LP — your notes, boards and settings are untouched, because they live in your folder and preferences, not in the app.</li>
   </ol>
+  <h2>Using LP with Claude</h2>
+  <p>With LP's connector for Claude (<span class="ui">lp-mcp</span>, see <span class="ui">docs/MCP.md</span>), Claude Code and the Claude desktop app can work with your notes: <em>“What's overdue?”</em>, <em>“Add today's standup to my daily note”</em>, <em>“Move the press release card to Review”</em>. It works on your folder directly, on your Mac only.</p>
+  <ul>
+    <li><strong>You choose, every time.</strong> Before Claude can read or change anything, LP shows you a small form in Claude: which of your allowed workspaces it may use, and optionally one folder inside it (leave it empty for the whole workspace). Only your answer counts — Claude can't fill it in — and if you close it, nothing is used.</li>
+    <li><strong>It can read, write and update</strong> pages, tasks and boards, but never delete anything; boards change card by card, so they stay valid.</li>
+    <li><strong>Your edits are safe:</strong> if you save a page in LP while Claude changes it, your save stands. Hidden, read-only and locked files are left alone.</li>
+  </ul>
 </section>
 
 <!-- 13 -->

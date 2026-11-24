@@ -10,7 +10,9 @@ version's heading (`## <version> — <date>`), which `Scripts/deploy.sh` reads.
 ## Unreleased
 
 - 2026-11-24 — **LP for Claude (MCP)**, at the owner's request (read, write and update). Branch
-  `feature/lp-mcp`; not released, not installed — waiting for the owner's review.
+  `feature/lp-mcp`; installed on the owner's Mac after their review (Claude Code and the desktop
+  app, workspace Noted); no app release needed — LP's own behaviour is unchanged. The user guide
+  has a new "Using LP with Claude" section (chapter 12).
   - `lp-mcp`: an MCP server (stdio, no dependencies) with 15 tools — list, search and read pages;
     list tasks and boards with progress; create pages and boards, add to pages and daily notes, add
     cards; edit text, rewrite pages, tick tasks off, edit and move cards. Built on LP's own code,

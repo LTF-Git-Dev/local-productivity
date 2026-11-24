@@ -190,7 +190,7 @@ nonisolated final class MCPServer {
     /// Whether two JSON-RPC ids are the same id: 7 and "7" are different.
     static func sameID(_ a: Any?, _ b: Any?) -> Bool {
         if let a = a as? String, let b = b as? String { return a == b }
-        if let a = a as? NSNumber, let b = b as? NSNumber, !(a is String), !(b is String) {
+        if let a = a as? NSNumber, let b = b as? NSNumber {
             return CFGetTypeID(a) != CFBooleanGetTypeID() && CFGetTypeID(b) != CFBooleanGetTypeID() && a == b
         }
         return false

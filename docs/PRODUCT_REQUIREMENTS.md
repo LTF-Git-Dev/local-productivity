@@ -162,7 +162,7 @@ Status: ✅ in 1.0.0 · 🟡 partly · ⬜ planned
 | ST-3 | Sharing: connect a GitHub token (verified before saving, stored in the Keychain) | ✅ |
 | ST-4 | Sharing: allow Google Drive for a connected Google account (`drive.file` only; asked when wanted); disconnecting deletes LP's Docs first | ✅ (1.0.1) |
 | ST-4 | Notifications (see 5.6) | ✅ |
-| AI-1 | **LP for Claude (MCP):** Claude Code and the Claude desktop app can read, write and update pages, tasks and boards (15 tools), on the Mac only, nothing deleted, every edit based on what it read | 🟡 built and reviewed on `feature/lp-mcp`; waiting for the owner's review |
+| AI-1 | **LP for Claude (MCP):** Claude Code and the Claude desktop app can read, write and update pages, tasks and boards (15 tools), on the Mac only, nothing deleted, every edit based on what it read | ✅ (2026-11-24, installed after the owner's review; the person picks the workspace in a form each session) |
 | ST-5 | Updates: LP checks its GitHub Releases once a day (can be turned off; betas optional), shows what's new and installs with one click (Install and Restart); only updates signed with LP's release key, the download checked byte for byte; LP → Check for Updates… | ✅ (1.0.1) |
 
 ## 6. Non-functional requirements
