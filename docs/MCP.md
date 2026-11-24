@@ -11,7 +11,8 @@ anything you share in a conversation.
 ## You choose, every time
 
 You give `lp-mcp` the workspaces Claude may ever use (one or more `--workspace` folders) — it can
-reach nothing else. In each conversation, **before Claude can read or change anything, LP itself
+reach nothing else. In each Claude Code session (each time the LP server starts — the desktop app
+may share one between chats: see Known limits), **before Claude can read or change anything, LP itself
 asks you** — a small form in Claude Code — which of those workspaces it may use, and optionally one
 folder inside it (leave the folder empty to allow the whole workspace). Only your answer counts:
 Claude can't fill in the form, and if you decline or close it, nothing is chosen and every tool

@@ -162,6 +162,11 @@ check(tool("lp_list_pages").text.contains("asks the person directly"), "and the 
 nextAnswer = ["jsonrpc": "2.0", "id": "lp-ask-1", "result": ["action": "accept", "content": ["workspace": root.lastPathComponent, "folder": 5]]]
 check(tool("lp_use_workspace").text.contains("wasn’t text"), "a folder answer that isn't text grants nothing")
 check(tool("lp_list_pages").text.contains("asks the person directly"), "still nothing in use")
+nextAnswer = ["jsonrpc": "2.0", "id": "lp-ask-1", "result": ["action": "accept", "content": ["workspace": root.lastPathComponent, "folder": NSNull()]]]
+check(tool("lp_use_workspace").text.contains("wasn’t text"), "nor does a null folder")
+check(MCPServer.sameID(7, 7) && MCPServer.sameID("7", "7"), "ids match themselves")
+check(!MCPServer.sameID(7, "7") && !MCPServer.sameID("7", 7), "but 7 and \"7\" are different ids")
+check(!MCPServer.sameID(true, 1), "and true isn't an id")
 nextAnswer = ["cancelled": true]
 let cancelledCall = send("tools/call", ["name": "lp_use_workspace", "arguments": [:]])
 check(cancelledCall == nil, "a call cancelled while asking gets no answer")

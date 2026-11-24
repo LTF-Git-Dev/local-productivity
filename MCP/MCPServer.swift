@@ -175,7 +175,7 @@ nonisolated final class MCPServer {
             throw VaultError("The person didn’t choose a workspace (\(result["action"] as? String ?? "no answer")), so nothing in LP was used. Ask them if they’d like to choose one.")
         }
         // An absent or empty folder is the whole workspace (as the form says); anything else must be text.
-        if let folder = content["folder"], !(folder is NSNull), !(folder is String) {
+        if let folder = content["folder"], !(folder is String) {
             throw VaultError("The answer’s folder wasn’t text, so no workspace was chosen.")
         }
         return (workspace, (content["folder"] as? String) ?? "")
@@ -186,6 +186,15 @@ nonisolated final class MCPServer {
 
     /// The id of the request being handled (so a cancellation for it can be recognised).
     private(set) var currentRequestID: Any?
+
+    /// Whether two JSON-RPC ids are the same id: 7 and "7" are different.
+    static func sameID(_ a: Any?, _ b: Any?) -> Bool {
+        if let a = a as? String, let b = b as? String { return a == b }
+        if let a = a as? NSNumber, let b = b as? NSNumber, !(a is String), !(b is String) {
+            return CFGetTypeID(a) != CFBooleanGetTypeID() && CFGetTypeID(b) != CFBooleanGetTypeID() && a == b
+        }
+        return false
+    }
 
     // MARK: - Arguments
 

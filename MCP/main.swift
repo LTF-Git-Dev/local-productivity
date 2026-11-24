@@ -69,8 +69,7 @@ server.sendRequest = { request in
         }
         // The tool call that is asking was cancelled: stop waiting (the form may never be answered).
         if let message, message["method"] as? String == "notifications/cancelled",
-           let cancelled = (message["params"] as? [String: Any])?["requestId"], let current = server.currentRequestID,
-           "\(cancelled)" == "\(current)" {
+           MCPServer.sameID((message["params"] as? [String: Any])?["requestId"], server.currentRequestID) {
             return ["cancelled": true]
         }
         pending.append(line)
