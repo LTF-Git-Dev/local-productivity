@@ -653,6 +653,17 @@ check(!(tool("lp_list_pages").json["pages"] as? [[String: Any]] ?? []).contains 
       "an invisible folder isn't listed")
 check(tool("lp_read_page", ["path": "Invisible/Plan.md"]).text.contains("hidden"), "nor read by path")
 
+// MARK: Review fixes (Codex round 7)
+
+// An attachment nobody can read changes nothing: only Markdown files are ever opened.
+write("Attachments/photo.jpg", "not really a photo")
+chmod(root.appendingPathComponent("Attachments/photo.jpg").path, 0o000)
+let withPhoto = tool("lp_list_pages")
+check(withPhoto.json["incomplete"] as? Bool == false, "an unreadable attachment doesn't make the scan incomplete: \(withPhoto.json["incomplete"] ?? "?")")
+let photoNote = tool("lp_daily_note", ["date": "2026-12-24"])
+check(!photoNote.error && photoNote.json["created"] as? Bool == true, "and doesn't block a daily note: \(photoNote.text.prefix(120))")
+chmod(root.appendingPathComponent("Attachments/photo.jpg").path, 0o644)
+
 // MARK: Nothing is ever deleted
 
 let before = allFiles()

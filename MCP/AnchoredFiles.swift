@@ -117,29 +117,33 @@ nonisolated final class AnchoredFiles {
     func create(in folder: String, base: String, extension ext: String, data: Data) throws -> String {
         let folderFD = try openFolder(folder, create: true)
         defer { close(folderFD) }
-        let temporary = try writeTemporary(in: folderFD, data, mode: 0o644)
-        var placed = false
-        defer {
-            // Our own file: cleared and removed if it never got its name.
-            if !placed, !Self.remove(temporary, in: folderFD) {
-                FileHandle.standardError.write(Data("lp-mcp: couldn’t remove the temporary file \(folder)/\(temporary)\n".utf8))
-            }
-        }
+        let temporary = try writeTemporary(in: folderFD, folder: folder, data, mode: 0o644)
         for counter in 1...10_000 {
             let name = counter == 1 ? "\(base).\(ext)" : "\(base) \(counter).\(ext)"
-            if renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_EXCL)) == 0 { placed = true; return name }
-            if errno != EEXIST { throw VaultError("The page couldn’t be created (\(String(cString: strerror(errno)))).") }
+            if renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_EXCL)) == 0 { return name }
+            if errno != EEXIST {
+                throw Self.cleanUp(temporary, in: folderFD, folder: folder,
+                                   "The page couldn’t be created (\(String(cString: strerror(errno)))).")
+            }
         }
-        throw VaultError("There are too many pages called “\(base)” in that folder.")
+        throw Self.cleanUp(temporary, in: folderFD, folder: folder, "There are too many pages called “\(base)” in that folder.")
+    }
+
+    /// Removes this server's own temporary file after a failure; the error says where its text
+    /// is kept if it couldn't be removed.
+    static func cleanUp(_ temporary: String, in folderFD: Int32, folder: String, _ message: String) -> VaultError {
+        if remove(temporary, in: folderFD) { return VaultError(message) }
+        let kept = folder.isEmpty ? temporary : folder + "/" + temporary
+        return VaultError(message + " A copy of the text is kept, hidden, as “\(kept)”.")
     }
 
     /// A new hidden file in `folderFD` holding `data`, written and saved to disk; its name.
-    private func writeTemporary(in folderFD: Int32, _ data: Data, mode: mode_t) throws -> String {
+    private func writeTemporary(in folderFD: Int32, folder: String, _ data: Data, mode: mode_t) throws -> String {
         let name = ".lp-mcp-\(UUID().uuidString).tmp"
         let fd = openat(folderFD, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
         guard fd >= 0 else { throw VaultError("The page couldn’t be written (\(String(cString: strerror(errno)))).") }
         defer { close(fd) }
-        do { try Self.writeAll(fd, data) } catch { Self.remove(name, in: folderFD); throw error }
+        do { try Self.writeAll(fd, data) } catch { throw Self.cleanUp(name, in: folderFD, folder: folder, "\(error)") }
         return name
     }
 
@@ -182,6 +186,8 @@ nonisolated final class AnchoredFiles {
             close(originalFD)
             throw VaultError("The page couldn’t be written (\(String(cString: strerror(errno)))).")
         }
+        var ours = stat()
+        guard fstat(fd, &ours) == 0 else { close(fd); close(originalFD); throw VaultError("The page couldn’t be written.") }
         var swapped = false
         defer { if !swapped { Self.remove(temporary, in: folderFD) } }
         do {
@@ -243,9 +249,12 @@ nonisolated final class AnchoredFiles {
         guard renameatx_np(folderFD, temporary, folderFD, name, UInt32(RENAME_SWAP)) == 0 else {
             throw VaultError("“\(path)” changed while it was being written. One version is in the page, the other kept, hidden, as “\(hiddenPath)”.")
         }
-        if let returned = try? read(hiddenPath, limit: limit), returned == data {
-            Self.remove(temporary, in: folderFD)
-            return .changedMeanwhile
+        // Back under the hidden name should be our own file — recognised by its identity, not just
+        // its text — and only then is it cleared and removed.
+        var back = stat()
+        if fstatat(folderFD, temporary, &back, AT_SYMLINK_NOFOLLOW) == 0, back.st_dev == ours.st_dev, back.st_ino == ours.st_ino {
+            if Self.remove(temporary, in: folderFD) { return .changedMeanwhile }
+            throw VaultError("“\(path)” changed while it was being written, so it wasn’t; the unused edit is kept, hidden, as “\(hiddenPath)”.")
         }
         // Yet another save landed in between: keep it next to the page under a visible name —
         // or stop and say exactly where it is.
@@ -260,10 +269,13 @@ nonisolated final class AnchoredFiles {
 
     /// Whether a file or folder is hidden in Finder: the hidden flag, or the older "invisible" bit
     /// in its Finder information.
+    /// When the Finder information can't be read (not merely absent), the item counts as hidden.
     static func isHidden(_ fd: Int32, flags: UInt32) -> Bool {
         if flags & UInt32(UF_HIDDEN) != 0 { return true }
         var info = [UInt8](repeating: 0, count: 32)
-        guard fgetxattr(fd, "com.apple.FinderInfo", &info, 32, 0, 0) == 32 else { return false }
+        let size = fgetxattr(fd, "com.apple.FinderInfo", &info, 32, 0, 0)
+        if size < 0 { return errno != ENOATTR }
+        guard size >= 10 else { return false }
         return info[8] & 0x40 != 0   // kIsInvisible (0x4000) in the big-endian flags at offset 8
     }
 
@@ -332,7 +344,8 @@ nonisolated final class AnchoredFiles {
     /// links, packages and `node_modules` are skipped and never followed. `visit` gets each
     /// file's path and modification date and returns false to stop. Returns false when part of
     /// the folder couldn't be read (the listing is then incomplete).
-    func walk(_ folder: String, visit: (_ path: String, _ modified: Date) -> Bool) throws -> Bool {
+    func walk(_ folder: String, wants: (_ name: String) -> Bool = { _ in true },
+              visit: (_ path: String, _ modified: Date) -> Bool) throws -> Bool {
         let start = try openFolder(folder)
         var complete = true
         var stopped = false
@@ -360,6 +373,7 @@ nonisolated final class AnchoredFiles {
                 let path = prefix.isEmpty ? name : prefix + "/" + name
                 switch info.st_mode & S_IFMT {
                 case S_IFREG:
+                    guard wants(name) else { continue }   // only the files asked for are ever opened
                     let file = openat(dirfd(directory), name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
                     guard file >= 0 else { complete = false; continue }
                     let invisible = Self.isHidden(file, flags: info.st_flags)

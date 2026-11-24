@@ -109,7 +109,7 @@ nonisolated final class LPVault {
         let base = try folder(folderPath)
         var found: [PageInfo] = []
         var hitLimit = false
-        let complete = try files.walk(base) { path, modified in
+        let complete = try files.walk(base, wants: { Self.pageExtensions.contains(($0 as NSString).pathExtension.lowercased()) }) { path, modified in
             guard Self.pageExtensions.contains((path as NSString).pathExtension.lowercased()) else { return true }
             found.append(PageInfo(path: path, title: Self.title(of: path), isBoard: isBoard(path), modified: modified))
             if found.count >= Self.maxPages { hitLimit = true; return false }
